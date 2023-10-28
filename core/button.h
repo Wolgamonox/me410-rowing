@@ -6,9 +6,9 @@
 enum class ButtonState {
     NONE,
     SHORT_PRESS,
-    TRIPLE_PRESS,
     LONG_PRESS,
-}
+    TRIPLE_PRESS,
+};
 
 // Press times in milliseconds
 const int SHORT_PRESS_TIME = 2000;
@@ -28,16 +28,20 @@ class Button {
     bool isPressing = false;
     bool isLongDetected = false;
 
+    // Used to determine if the button was pressed 3 times
+    unsigned numberOfShortPresses = 0;
+    unsigned long firstShortPressTime = 0;
+
     ButtonState buttonState = ButtonState::NONE;
 
    public:
     void setup();
     void loop();
 
-    buttonState getButtonState();
+    ButtonState getButtonState();
 
     Button();
     ~Button();
-}
+};
 
 #endif  // BUTTON_H
