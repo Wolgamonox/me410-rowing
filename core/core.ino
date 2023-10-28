@@ -1,4 +1,5 @@
 #include "button.h"
+#include "follower_ble_handler.h"
 #include "leader_ble_handler.h"
 
 // Main state of the device
@@ -36,6 +37,7 @@ struct MainState {
 } mainState;
 
 LeaderBLEHandler* leaderBLEHandler = NULL;
+FollowerBLEHandler* followerBLEHandler = NULL;
 
 void setup() {
     Serial.begin(115200);
@@ -98,35 +100,43 @@ void loop() {
 
             // TODO: Add calibration step
 
-
             // main loop
 
-            // check if we have a button press to stop sending angle
-            if (buttonState == ButtonState::SHORT_PRESS) {
-                if (leaderBLEHandler->getSendingKneeFlexion()) {
-                    leaderBLEHandler->setSendingKneeFlexion(false);
-                } 
-            } else if (buttonState == ButtonState::LONG_PRESS) {
-                if (!leaderBLEHandler->getSendingKneeFlexion()) {
-                    leaderBLEHandler->setSendingKneeFlexion(true);
+            if (leaderBLEHandler->isConnected()) {
+                // check if we have a button press to stop sending angle
+                if (buttonState == ButtonState::SHORT_PRESS) {
+                    if (leaderBLEHandler->getSendingKneeFlexion()) {
+                        leaderBLEHandler->setSendingKneeFlexion(false);
+                    }
+                } else if (buttonState == ButtonState::LONG_PRESS) {
+                    if (!leaderBLEHandler->getSendingKneeFlexion()) {
+                        leaderBLEHandler->setSendingKneeFlexion(true);
+                    }
+                }
+
+                // Sense angle
+                // Debug: random knee flexion between 0 and 100
+                mainState.kneeFlexion = random(0, 10000) / 100.0f;
+
+                // Send angle
+                if (mainState.connectionStepDone) {
+                    leaderBLEHandler->setKneeFlexion(mainState.kneeFlexion);
+                    leaderBLEHandler->loop();
                 }
             }
-
-            // Sense angle
-            // Debug: random knee flexion between 0 and 100
-            mainState.kneeFlexion = random(0, 10000) / 100.0f;
-
-            // Send angle
-            if (mainState.connectionStepDone) {
-                leaderBLEHandler->setKneeFlexion(mainState.kneeFlexion);
-                leaderBLEHandler->loop();
-            }
-
 
             break;
 
         case MainState::Role::FOLLOWER:
             // If follower, do follower stuff
+
+            // If not connected to leader, start scanning
+            if (!mainState.connectionStepDone) {
+                followerBLEHandler = new FollowerBLEHandler();
+                leaderBLEHandler->setup();
+
+                mainState.connectionStepDone = true;
+            }
 
             // TODO: Add calibration step
 

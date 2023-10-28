@@ -37,6 +37,8 @@ class LeaderBLEHandler {
     void setSendingKneeFlexion(bool sendingKneeFlexion) { this->sendingKneeFlexion = sendingKneeFlexion; }
     void loop();
 
+    bool isConnected() { return deviceConnected; }
+
     LeaderBLEHandler();
     ~LeaderBLEHandler();
 };
