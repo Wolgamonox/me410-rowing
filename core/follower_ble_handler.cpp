@@ -1,20 +1,12 @@
 #include "follower_ble_handler.h"
 
-bool FollowerBLEHandler::doConnect = false;
-bool FollowerBLEHandler::connected = false;
-bool FollowerBLEHandler::doScan = false;
-
 FollowerBLEHandler::FollowerBLEHandler() {
 }
 
 FollowerBLEHandler::~FollowerBLEHandler() {
 }
 
-void FollowerBLEHandler::notifyCallback(
-    BLERemoteCharacteristic* pBLERemoteCharacteristic,
-    uint8_t* pData,
-    size_t length,
-    bool isNotify) {
+void FollowerBLEHandler::notifyCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
     Serial.print("Notify callback for characteristic ");
     Serial.print(pBLERemoteCharacteristic->getUUID().toString().c_str());
     Serial.print(" of data length ");
@@ -31,11 +23,11 @@ bool FollowerBLEHandler::connectToServer() {
     BLEClient* pClient = BLEDevice::createClient();
     Serial.println(" - Created client");
 
-    pClient->setClientCallbacks(new MyClientCallback());
+    pClient->setClientCallbacks(new MyClientCallback(&connected));
 
     // Connect to the remove BLE Server.
-    pClient->connect(leaderDevice);  // if you pass BLEAdvertisedDevice instead of address, it will be recognized type of peer device address (public or private)
-    Serial.println(" - Connected to server");
+    bool connectionSuccessful = pClient->connect(leaderDevice);  // if you pass BLEAdvertisedDevice instead of address, it will be recognized type of peer device address (public or private)
+    Serial.printf(" - Connection %s\n", connectionSuccessful ? "successful" : "failed");
     pClient->setMTU(517);  // set client to request maximum MTU from server (default is 23 otherwise)
 
     // Obtain a reference to the service we are after in the remote BLE server.
@@ -73,6 +65,7 @@ bool FollowerBLEHandler::connectToServer() {
     return true;
 }
 
+
 void FollowerBLEHandler::setup() {
     BLEDevice::init("");
 
@@ -80,29 +73,35 @@ void FollowerBLEHandler::setup() {
     // have detected a new device.  Specify that we want active scanning and start the
     // scan to run for 5 seconds.
     BLEScan* pBLEScan = BLEDevice::getScan();
-    pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
+    pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks(&leaderDevice, &connected, &doConnect, &doScan));
     pBLEScan->setInterval(1349);
     pBLEScan->setWindow(449);
     pBLEScan->setActiveScan(true);
     pBLEScan->start(5, false);
-
-    Serial.println("Scanning for BLE devices...");
 }
 
 void FollowerBLEHandler::loop() {
-    // If the flag "doConnect" is true then we have scanned for and found the desired
-    // BLE Server with which we wish to connect.  Now we connect to it.  Once we are
-    // connected we set the connected flag to be true.
-    if (doConnect) {
-        if (connectToServer()) {
-            Serial.println("We are now connected to the BLE Server.");
-        } else {
-            Serial.println("We have failed to connect to the server; there is nothin more we will do.");
-        }
-        doConnect = false;
+     // If the flag "doConnect" is true then we have scanned for and found the desired
+  // BLE Server with which we wish to connect.  Now we connect to it.  Once we are
+  // connected we set the connected flag to be true.
+  if (doConnect) {
+    if (connectToServer()) {
+      Serial.println("We are now connected to the BLE Server.");
+    } else {
+      Serial.println("We have failed to connect to the server; there is nothin more we will do.");
     }
+    doConnect = false;
+  }
 
-    if (!connected && doScan) {
-        BLEDevice::getScan()->start(0);  // this is just example to start scan after disconnect, most likely there is better way to do it in arduino
-    }
+  // If we are connected to a peer BLE Server, update the characteristic each time we are reached
+  // with the current time since boot.
+  if (connected) {
+    // String newValue = "Time since boot: " + String(millis() / 1000);
+    // Serial.println("Setting new characteristic value to \"" + newValue + "\"");
+
+    // // Set the characteristic's value to be the array of bytes that is actually a string.
+    // pRemoteCharacteristic->writeValue(newValue.c_str(), newValue.length());
+  } else if (doScan) {
+    BLEDevice::getScan()->start(0);  // this is just example to start scan after disconnect, most likely there is better way to do it in arduino
+  }
 }

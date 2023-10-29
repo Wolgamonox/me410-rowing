@@ -53,7 +53,8 @@ void loop() {
     ButtonState buttonState = ButtonState::NONE;
     if (Serial.available()) {
         String command = Serial.readStringUntil('\n');
-        Serial.println("Serial command received: " + command);
+        Serial.print("Serial command received: " + command);
+        Serial.println();
         // If button command received, set button state
         if (command[0] == 'B') {
             switch (command[1]) {
@@ -133,12 +134,21 @@ void loop() {
             // If not connected to leader, start scanning
             if (!mainState.connectionStepDone) {
                 followerBLEHandler = new FollowerBLEHandler();
-                leaderBLEHandler->setup();
+                followerBLEHandler->setup();
 
                 mainState.connectionStepDone = true;
             }
 
             // TODO: Add calibration step
+
+            // main loop
+
+            if (mainState.connectionStepDone) {
+                followerBLEHandler->loop();
+
+                mainState.kneeFlexion = followerBLEHandler->getKneeFlexion();
+
+            }
 
             break;
     }
