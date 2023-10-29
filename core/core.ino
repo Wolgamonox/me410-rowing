@@ -21,18 +21,7 @@ struct MainState {
 
     float kneeFlexion = 0.0f;
 
-    // // If leader, use this state
-    // enum {
-    //     IDLE,
-    //     SEARCHING,
-    // } connectionState = IDLE;
-
-    // // If follower, use this state
-    // enum {
-    //     NOT_CONNECTED,
-    //     SEARCHING,
-    //     CONNECTED,
-    // } leaderConnectionState = NOT_CONNECTED;
+    bool following = false;
 
 } mainState;
 
@@ -146,8 +135,29 @@ void loop() {
             if (mainState.connectionStepDone) {
                 followerBLEHandler->loop();
 
-                mainState.kneeFlexion = followerBLEHandler->getKneeFlexion();
+                if (followerBLEHandler->isConnected()) {
+                    if (buttonState == ButtonState::LONG_PRESS) {
+                        if (!mainState.following) {
+                            mainState.following = true;
+                            Serial.println("Following");
+                        }
+                    } else if (buttonState == ButtonState::SHORT_PRESS) {
+                        if (mainState.following) {
+                            mainState.following = false;
+                            Serial.println("Not following");
+                        }
+                    }
+                }
 
+                if (mainState.following) {
+                    if (fabs(mainState.kneeFlexion - followerBLEHandler->getKneeFlexion()) > 0.001f) {
+                        mainState.kneeFlexion = followerBLEHandler->getKneeFlexion();
+                        Serial.println("Knee flexion: " + String(mainState.kneeFlexion));
+                    }
+
+                    // delay for debugging
+                    delay(100);
+                }
             }
 
             break;

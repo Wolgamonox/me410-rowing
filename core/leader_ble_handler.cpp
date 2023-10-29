@@ -69,10 +69,10 @@ void LeaderBLEHandler::loop() {
             Serial.println(kneeFlexion);
 
             // printf the bytes in hex of the kneeFlexion float
-            for (int i = 0; i < 4; i++) {
-                Serial.print(((uint8_t *)&kneeFlexion)[i], HEX);
-                Serial.print(" ");
-            }
+            // for (int i = 0; i < 4; i++) {
+            //     Serial.print(((uint8_t *)&kneeFlexion)[i], HEX);
+            //     Serial.print(" ");
+            // }
             Serial.println();
             // note: big-endian hex notation
             pCharacteristic->setValue((uint8_t *)&kneeFlexion, 4);

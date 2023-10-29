@@ -14,8 +14,9 @@ class FollowerBLEHandler {
     BLEAdvertisedDevice *leaderDevice;
     BLERemoteCharacteristic *pRemoteCharacteristic;
 
-    bool
-    connectToServer();
+    static float kneeFlexion;
+
+    bool connectToServer();
 
     static void notifyCallback(BLERemoteCharacteristic *pBLERemoteCharacteristic,
                                uint8_t *pData,
@@ -74,6 +75,10 @@ class FollowerBLEHandler {
    public:
     void setup();
     void loop();
+
+    bool isConnected();
+
+    float getKneeFlexion();
 
     FollowerBLEHandler();
     ~FollowerBLEHandler();
