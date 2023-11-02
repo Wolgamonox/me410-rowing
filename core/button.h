@@ -7,15 +7,13 @@ enum class ButtonState {
     NONE,
     SHORT_PRESS,
     LONG_PRESS,
-    TRIPLE_PRESS,
 };
 
 // Press times in milliseconds
 const int SHORT_PRESS_TIME = 2000;
 const int LONG_PRESS_TIME = 2000;
-const int TRIPLE_PRESS_TIME = 500;
 
-const int BUTTON_PIN = 2;
+const int BUTTON_PIN = GPIO_NUM_4;
 
 class Button {
    private:
@@ -28,9 +26,6 @@ class Button {
     bool isPressing = false;
     bool isLongDetected = false;
 
-    // Used to determine if the button was pressed 3 times
-    unsigned numberOfShortPresses = 0;
-    unsigned long firstShortPressTime = 0;
 
     ButtonState buttonState = ButtonState::NONE;
 
@@ -38,7 +33,7 @@ class Button {
     void setup();
     void loop();
 
-    ButtonState getButtonState();
+    ButtonState getButtonState() {return buttonState;};
 
     Button();
     ~Button();

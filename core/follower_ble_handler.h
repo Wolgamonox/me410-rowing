@@ -47,9 +47,9 @@ class FollowerBLEHandler {
 
             // We have found a device, let us now see if it contains the service we are looking for.
             if (advertisedDevice.haveServiceUUID() && advertisedDevice.isAdvertisingService(serviceUUID)) {
-                Serial.printf("Found our device at address: %s\n", (*leaderDevice)->getAddress().toString().c_str());
                 BLEDevice::getScan()->stop();
                 *leaderDevice = new BLEAdvertisedDevice(advertisedDevice);
+                Serial.printf("Found our device at address: %s\n", (*leaderDevice)->getAddress().toString().c_str());
 
                 *doConnect = true;
                 *doScan = true;

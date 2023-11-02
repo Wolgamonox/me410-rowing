@@ -28,29 +28,7 @@ void Button::loop() {
         long pressDuration = releasedTime - pressedTime;
 
         if (pressDuration < SHORT_PRESS_TIME) {
-            // Triple press detected
-            if (numberOfShortPresses == 2) {
-                buttonState = ButtonState::TRIPLE_PRESS;
-                numberOfShortPresses = 0;
-                return;
-            }
-
-            // First short press detected
-            if (numberOfShortPresses == 0) {
-                firstShortPressTime = millis();
-                numberOfShortPresses++;
-            } else if (numberOfShortPresses > 0) {
-                // If delay between presses is to long, reset the counter
-                if (millis() - firstShortPressTime > TRIPLE_PRESS_TIME) {
-                    // if we only pressed once set the state to short press
-                    if (numberOfShortPresses == 1) {
-                        buttonState = ButtonState::SHORT_PRESS;
-                    }
-                    numberOfShortPresses = 0;
-                } else {
-                    numberOfShortPresses++;
-                }
-            }
+            buttonState = ButtonState::SHORT_PRESS;
         }
     }
 

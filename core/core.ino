@@ -1,3 +1,5 @@
+#include <ezLED.h>
+
 #include "button.h"
 #include "follower_ble_handler.h"
 #include "leader_ble_handler.h"
@@ -18,6 +20,7 @@ struct MainState {
     } calibrationState = NOT_CALIBRATED;
 
     bool connectionStepDone = false;
+    bool connected = false;
 
     float kneeFlexion = 0.0f;
 
@@ -28,18 +31,45 @@ struct MainState {
 LeaderBLEHandler* leaderBLEHandler = NULL;
 FollowerBLEHandler* followerBLEHandler = NULL;
 
+Button button;
+ButtonState buttonState = ButtonState::NONE;
+
+ezLED leaderLED(GPIO_NUM_18);
+ezLED followerLED(GPIO_NUM_19);
+ezLED bluetoothLED(GPIO_NUM_21);
+
 void setup() {
     Serial.begin(115200);
     Serial.println("Device started");
+
+    button.setup();
+
+    leaderLED.turnON();
+    followerLED.turnON();
+    bluetoothLED.turnON();
+
+    delay(1000);
+
+    leaderLED.turnOFF();
+    followerLED.turnOFF();
+    bluetoothLED.turnOFF();
+
+    Serial.println("Setup done");
 }
 
 void loop() {
+    button.loop();
+
+    leaderLED.loop();
+    followerLED.loop();
+    bluetoothLED.loop();
+
+    buttonState = button.getButtonState();
+
     // DEBUG: simulate button presses with serial commands
     // "BS" = button short press
     // "BL" = button long press
     // "B3" = button triple presses
-
-    ButtonState buttonState = ButtonState::NONE;
     if (Serial.available()) {
         String command = Serial.readStringUntil('\n');
         Serial.print("Serial command received: " + command);
@@ -54,10 +84,6 @@ void loop() {
                 case 'L':
                     buttonState = ButtonState::LONG_PRESS;
                     Serial.println("Button long press");
-                    break;
-                case '3':
-                    buttonState = ButtonState::TRIPLE_PRESS;
-                    Serial.println("Button triple press");
                     break;
 
                 default:
@@ -86,22 +112,24 @@ void loop() {
                 leaderBLEHandler->setup();
 
                 mainState.connectionStepDone = true;
+                break;
             }
 
             // TODO: Add calibration step
 
             // main loop
 
-            if (leaderBLEHandler->isConnected()) {
+            mainState.connected = leaderBLEHandler->isConnected();
+
+            if (mainState.connected) {
                 // check if we have a button press to stop sending angle
                 if (buttonState == ButtonState::SHORT_PRESS) {
-                    if (leaderBLEHandler->getSendingKneeFlexion()) {
-                        leaderBLEHandler->setSendingKneeFlexion(false);
-                    }
+                    leaderBLEHandler->setSendingKneeFlexion(false);
+                    mainState.following = false;
+
                 } else if (buttonState == ButtonState::LONG_PRESS) {
-                    if (!leaderBLEHandler->getSendingKneeFlexion()) {
-                        leaderBLEHandler->setSendingKneeFlexion(true);
-                    }
+                    leaderBLEHandler->setSendingKneeFlexion(true);
+                    mainState.following = true;
                 }
 
                 // Sense angle
@@ -126,6 +154,7 @@ void loop() {
                 followerBLEHandler->setup();
 
                 mainState.connectionStepDone = true;
+                break;
             }
 
             // TODO: Add calibration step
@@ -135,7 +164,8 @@ void loop() {
             if (mainState.connectionStepDone) {
                 followerBLEHandler->loop();
 
-                if (followerBLEHandler->isConnected()) {
+                mainState.connected = followerBLEHandler->isConnected();
+                if (mainState.connected) {
                     if (buttonState == ButtonState::LONG_PRESS) {
                         if (!mainState.following) {
                             mainState.following = true;
@@ -152,14 +182,63 @@ void loop() {
                 if (mainState.following) {
                     if (fabs(mainState.kneeFlexion - followerBLEHandler->getKneeFlexion()) > 0.001f) {
                         mainState.kneeFlexion = followerBLEHandler->getKneeFlexion();
+
                         Serial.println("Knee flexion: " + String(mainState.kneeFlexion));
                     }
 
                     // delay for debugging
-                    delay(100);
+                    // delay(100);
                 }
             }
 
+            break;
+    }
+
+    // set leds to reflect current status
+    setLeds();
+}
+
+void setLeds() {
+    if (mainState.connected) {
+        bluetoothLED.turnON();
+    } else {
+        switch (mainState.role) {
+            case MainState::Role::NOT_SET:
+                bluetoothLED.turnOFF();
+                break;
+            case MainState::Role::LEADER:
+            case MainState::Role::FOLLOWER:
+                if (bluetoothLED.getState() != LED_BLINKING) {
+                    bluetoothLED.blink(500, 500);
+                }
+                break;
+        }
+    }
+    switch (mainState.role) {
+        case MainState::Role::NOT_SET:
+            leaderLED.turnOFF();
+            followerLED.turnOFF();
+            break;
+        case MainState::Role::LEADER:
+            if (mainState.following) {
+                if (leaderLED.getState() != LED_BLINKING) {
+                    leaderLED.blink(300, 300);
+                }
+            } else {
+                leaderLED.turnON();
+            }
+
+            followerLED.turnOFF();
+            break;
+        case MainState::Role::FOLLOWER:
+            leaderLED.turnOFF();
+            if (mainState.following) {
+                if (followerLED.getState() != LED_BLINKING) {
+                    followerLED.blink(300, 300);
+                }
+            } else {
+                followerLED.turnON();
+            }
             break;
     }
 }
