@@ -1,8 +1,28 @@
 #include <ezLED.h>
 
-#include "button.h"
-#include "follower_ble_handler.h"
-#include "leader_ble_handler.h"
+#include "src/button/button.h"
+#include "src/communication/esp_now/follower/esp_now_follower.h"
+#include "src/communication/esp_now/leader/esp_now_leader.h"
+
+// PIN CONFIGURATION
+
+// SPI
+const int SPI_MISO_PIN = GPIO_NUM_19;
+const int SPI_MOSI_PIN = GPIO_NUM_23;
+const int SPI_SCLK_PIN = GPIO_NUM_18;
+const int SPI_SS_PIN = GPIO_NUM_5;
+
+// Button
+const int BUTTON_PIN = GPIO_NUM_4;
+
+// LEDs
+const int LEADER_LED_PIN = GPIO_NUM_25;
+const int FOLLOWER_LED_PIN = GPIO_NUM_26;
+const int CONNECTION_LED_PIN = GPIO_NUM_27;
+
+// Override pin for communication
+// If this pin is grounded, we will use wired communication instead of wireless
+const int OVERRIDE_PIN = GPIO_NUM_32;
 
 // Main state of the device
 struct MainState {
@@ -19,20 +39,26 @@ struct MainState {
         DONE,
     } calibrationState = NOT_CALIBRATED;
 
-    bool connectionStepDone = false;
+    // For the leader, active means sending the angle to the follower
+    // For the follower, active means controlling the motor to follow the angle from the leader
+    bool active = false;
+
+    // If the leader has at least one follower connected
+    // If the follower is connected to a leader
     bool connected = false;
 
+    // The current flexion of the knee
+    // This does not correspond to the angle of the knee, but a value between 0 and 1
+    // representing the flexion of the knee on a scaled range
     float kneeFlexion = 0.0f;
-
-    bool following = false;
-
 } mainState;
 
-LeaderBLEHandler* leaderBLEHandler = NULL;
-FollowerBLEHandler* followerBLEHandler = NULL;
+Button button(BUTTON_PIN);
+ButtonState buttonState = ButtonState::none;
 
-Button button;
-ButtonState buttonState = ButtonState::NONE;
+// Communication
+LeaderComService* leaderCommunication;
+FollowerComService* followerCommunication;
 
 ezLED leaderLED(GPIO_NUM_18);
 ezLED followerLED(GPIO_NUM_19);
@@ -40,7 +66,7 @@ ezLED bluetoothLED(GPIO_NUM_21);
 
 void setup() {
     Serial.begin(115200);
-    Serial.println("Device started");
+    Serial.println("Device started.");
 
     button.setup();
 
@@ -54,7 +80,7 @@ void setup() {
     followerLED.turnOFF();
     bluetoothLED.turnOFF();
 
-    Serial.println("Setup done");
+    Serial.println("Setup done.");
 }
 
 void loop() {
@@ -78,11 +104,11 @@ void loop() {
         if (command[0] == 'B') {
             switch (command[1]) {
                 case 'S':
-                    buttonState = ButtonState::SHORT_PRESS;
+                    buttonState = ButtonState::shortPress;
                     Serial.println("Button short press");
                     break;
                 case 'L':
-                    buttonState = ButtonState::LONG_PRESS;
+                    buttonState = ButtonState::longPress;
                     Serial.println("Button long press");
                     break;
 
@@ -95,101 +121,96 @@ void loop() {
     switch (mainState.role) {
         case MainState::Role::NOT_SET:
             // If role not set, set role depending on button press
-            if (buttonState == ButtonState::LONG_PRESS) {
+            if (buttonState == ButtonState::longPress) {
                 mainState.role = MainState::Role::LEADER;
+
                 Serial.println("Role set to leader");
-            } else if (buttonState == ButtonState::SHORT_PRESS) {
+
+                leaderCommunication = new EspNowLeader(mainState.kneeFlexion);
+
+                if (!leaderCommunication->init()) {
+                    Serial.println("Failed to init leader communication");
+                } else {
+                    Serial.println("Leader communication init done");
+                }
+
+                if (!leaderCommunication->attach()) {
+                    Serial.println("Failed to attach peer");
+                } else {
+                    Serial.println("Successfully attached peer");
+                }
+
+            } else if (buttonState == ButtonState::shortPress) {
                 mainState.role = MainState::Role::FOLLOWER;
                 Serial.println("Role set to follower");
             }
             break;
         case MainState::Role::LEADER:
-            // Bluetooth handling
-
-            // If not connected to follower, start advertising
-            if (!mainState.connectionStepDone) {
-                leaderBLEHandler = new LeaderBLEHandler();
-                leaderBLEHandler->setup();
-
-                mainState.connectionStepDone = true;
-                break;
-            }
-
             // TODO: Add calibration step
 
             // main loop
 
-            mainState.connected = leaderBLEHandler->isConnected();
+            mainState.kneeFlexion = random(0, 10000) / 100.0f;
 
-            if (mainState.connected) {
-                // check if we have a button press to stop sending angle
-                if (buttonState == ButtonState::SHORT_PRESS) {
-                    leaderBLEHandler->setSendingKneeFlexion(false);
-                    mainState.following = false;
+            leaderCommunication->notify();
 
-                } else if (buttonState == ButtonState::LONG_PRESS) {
-                    leaderBLEHandler->setSendingKneeFlexion(true);
-                    mainState.following = true;
-                }
+            delay(2000);
 
-                // Sense angle
-                // Debug: random knee flexion between 0 and 100
-                mainState.kneeFlexion = random(0, 10000) / 100.0f;
+            // if (mainState.connected) {
+            //     // check if we have a button press to stop sending angle
+            //     if (buttonState == ButtonState::shortPress) {
+            //         mainState.following = false;
 
-                // Send angle
-                if (mainState.connectionStepDone) {
-                    leaderBLEHandler->setKneeFlexion(mainState.kneeFlexion);
-                    leaderBLEHandler->loop();
-                }
-            }
+            //     } else if (buttonState == ButtonState::longPress) {
+            //         mainState.following = true;
+            //     }
+
+            //     // Sense angle
+            //     // Debug: random knee flexion between 0 and 100
+            //     mainState.kneeFlexion = random(0, 10000) / 100.0f;
+
+            //     // Send angle
+            //     if (mainState.connectionStepDone) {
+            //         // leaderBLEHandler->loop();
+            //     }
+            // }
 
             break;
 
         case MainState::Role::FOLLOWER:
-            // If follower, do follower stuff
-
-            // If not connected to leader, start scanning
-            if (!mainState.connectionStepDone) {
-                followerBLEHandler = new FollowerBLEHandler();
-                followerBLEHandler->setup();
-
-                mainState.connectionStepDone = true;
-                break;
-            }
-
             // TODO: Add calibration step
 
             // main loop
 
-            if (mainState.connectionStepDone) {
-                followerBLEHandler->loop();
+            // if (mainState.connectionStepDone) {
+            //     // followerBLEHandler->loop();
 
-                mainState.connected = followerBLEHandler->isConnected();
-                if (mainState.connected) {
-                    if (buttonState == ButtonState::LONG_PRESS) {
-                        if (!mainState.following) {
-                            mainState.following = true;
-                            Serial.println("Following");
-                        }
-                    } else if (buttonState == ButtonState::SHORT_PRESS) {
-                        if (mainState.following) {
-                            mainState.following = false;
-                            Serial.println("Not following");
-                        }
-                    }
-                }
+            //     // mainState.connected = followerBLEHandler->isConnected();
+            //     if (mainState.connected) {
+            //         if (buttonState == ButtonState::longPress) {
+            //             if (!mainState.following) {
+            //                 mainState.following = true;
+            //                 Serial.println("Following");
+            //             }
+            //         } else if (buttonState == ButtonState::shortPress) {
+            //             if (mainState.following) {
+            //                 mainState.following = false;
+            //                 Serial.println("Not following");
+            //             }
+            //         }
+            //     }
 
-                if (mainState.following) {
-                    if (fabs(mainState.kneeFlexion - followerBLEHandler->getKneeFlexion()) > 0.001f) {
-                        mainState.kneeFlexion = followerBLEHandler->getKneeFlexion();
+            //     if (mainState.following) {
+            //         // if (fabs(mainState.kneeFlexion - followerBLEHandler->getKneeFlexion()) > 0.001f) {
+            //         //     mainState.kneeFlexion = followerBLEHandler->getKneeFlexion();
 
-                        Serial.println("Knee flexion: " + String(mainState.kneeFlexion));
-                    }
+            //         //     Serial.println("Knee flexion: " + String(mainState.kneeFlexion));
+            //         // }
 
-                    // delay for debugging
-                    // delay(100);
-                }
-            }
+            //         // delay for debugging
+            //         // delay(100);
+            //     }
+            // }
 
             break;
     }
@@ -220,7 +241,7 @@ void setLeds() {
             followerLED.turnOFF();
             break;
         case MainState::Role::LEADER:
-            if (mainState.following) {
+            if (mainState.active) {
                 if (leaderLED.getState() != LED_BLINKING) {
                     leaderLED.blink(300, 300);
                 }
@@ -232,7 +253,7 @@ void setLeds() {
             break;
         case MainState::Role::FOLLOWER:
             leaderLED.turnOFF();
-            if (mainState.following) {
+            if (mainState.active) {
                 if (followerLED.getState() != LED_BLINKING) {
                     followerLED.blink(300, 300);
                 }
