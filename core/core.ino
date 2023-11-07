@@ -136,6 +136,10 @@ void loop() {
                 // Debug: random knee flexion between 0 and 100
                 mainState.kneeFlexion = random(0, 10000) / 100.0f;
 
+                // LEADER: ICI ON SET L'ANGLE DU LEADER AVANT l'envoi
+                // la ligne du dessus ça set un angle random pour le debug, entre 0 et 100
+                // je fais la division par 100.0f pour avoir un angle en float
+
                 // Send angle
                 if (mainState.connectionStepDone) {
                     leaderBLEHandler->setKneeFlexion(mainState.kneeFlexion);
@@ -182,6 +186,9 @@ void loop() {
                 if (mainState.following) {
                     if (fabs(mainState.kneeFlexion - followerBLEHandler->getKneeFlexion()) > 0.001f) {
                         mainState.kneeFlexion = followerBLEHandler->getKneeFlexion();
+
+                        // FOLLOWER: ICI ON RECOIT LE KNEE ANGLE DU LEADER
+                        // ici on set le setpoint pour l'angle du moteur
 
                         Serial.println("Knee flexion: " + String(mainState.kneeFlexion));
                     }
