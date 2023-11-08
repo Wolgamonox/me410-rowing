@@ -22,7 +22,7 @@ const int CONNECTION_LED_PIN = GPIO_NUM_27;
 
 // Override pin for communication
 // If this pin is grounded, we will use wired communication instead of wireless
-const int OVERRIDE_PIN = GPIO_NUM_32;
+const int COMM_OVERRIDE_PIN = GPIO_NUM_32;
 
 // Main state of the device
 struct MainState {
@@ -60,6 +60,10 @@ ButtonState buttonState = ButtonState::none;
 LeaderComService* leaderCommunication;
 FollowerComService* followerCommunication;
 
+// Period at which we check if we have a connection
+int beaconPeriod = 1000;
+unsigned long startTime = 0;
+
 ezLED leaderLED(GPIO_NUM_18);
 ezLED followerLED(GPIO_NUM_19);
 ezLED bluetoothLED(GPIO_NUM_21);
@@ -69,6 +73,9 @@ void setup() {
     Serial.println("Device started.");
 
     button.setup();
+
+    // If pin is grounded, use wired communication
+    pinMode(COMM_OVERRIDE_PIN, INPUT_PULLUP);
 
     leaderLED.turnON();
     followerLED.turnON();
@@ -126,61 +133,118 @@ void loop() {
 
                 Serial.println("Role set to leader");
 
-                leaderCommunication = new EspNowLeader(mainState.kneeFlexion);
-
-                if (!leaderCommunication->init()) {
-                    Serial.println("Failed to init leader communication");
+                if (digitalRead(COMM_OVERRIDE_PIN) == LOW) {
+                    Serial.println("Using wired communication");
+                    // leaderCommunication = new LeaderComService();
                 } else {
-                    Serial.println("Leader communication init done");
+                    Serial.println("Using wireless communication");
+                    leaderCommunication = new EspNowLeader();
                 }
 
-                if (!leaderCommunication->attach()) {
-                    Serial.println("Failed to attach peer");
-                } else {
-                    Serial.println("Successfully attached peer");
-                }
+                leaderCommunication->init();
 
             } else if (buttonState == ButtonState::shortPress) {
                 mainState.role = MainState::Role::FOLLOWER;
                 Serial.println("Role set to follower");
+
+                if (digitalRead(COMM_OVERRIDE_PIN) == LOW) {
+                    Serial.println("Using wired communication");
+                    // followerCommunication = new FollowerComService();
+                } else {
+                    Serial.println("Using wireless communication");
+                    followerCommunication = new EspNowFollower();
+                }
+
+                followerCommunication->init();
             }
             break;
         case MainState::Role::LEADER:
-            // TODO: Add calibration step
-
             // main loop
 
+            // while not connected, send messages until we get a response
+            if (!mainState.connected) {
+                if (millis() > startTime + beaconPeriod) {
+                    startTime = millis();
+
+                    if (leaderCommunication->isConnected()) {
+                        mainState.connected = true;
+                        Serial.println("Connected");
+                    }
+                }
+
+                // Do nothing else until connected
+                break;
+            }
+
+            // TODO: Add calibration step
+
+            // Update button state to start or stop sending angle
+            if (buttonState == ButtonState::longPress) {
+                if (!mainState.active) {
+                    mainState.active = true;
+                    Serial.println("Sending angle");
+                }
+            } else if (buttonState == ButtonState::shortPress) {
+                if (mainState.active) {
+                    mainState.active = false;
+                    Serial.println("Not sending angle");
+                }
+            }
+
+            // Sense angle
+            // TODO: relace with actual angle sensor and scaling function
+            // DEBUG: fake angle
             mainState.kneeFlexion = random(0, 10000) / 100.0f;
 
-            leaderCommunication->notify();
+            if (mainState.active) {
+                // Send angle
+                leaderCommunication->send(mainState.kneeFlexion);
+            }
 
+            // DEBUG: delay for sending messages
             delay(2000);
-
-            // if (mainState.connected) {
-            //     // check if we have a button press to stop sending angle
-            //     if (buttonState == ButtonState::shortPress) {
-            //         mainState.following = false;
-
-            //     } else if (buttonState == ButtonState::longPress) {
-            //         mainState.following = true;
-            //     }
-
-            //     // Sense angle
-            //     // Debug: random knee flexion between 0 and 100
-            //     mainState.kneeFlexion = random(0, 10000) / 100.0f;
-
-            //     // Send angle
-            //     if (mainState.connectionStepDone) {
-            //         // leaderBLEHandler->loop();
-            //     }
-            // }
 
             break;
 
         case MainState::Role::FOLLOWER:
+            // main loop
+
+            // while not connected, wait for messages
+            // when we get a message, consider ourselves connected
+            if (!mainState.connected) {
+                if (followerCommunication->isConnected()) {
+                    mainState.connected = true;
+                    Serial.println("Connected");
+                }
+                break;
+            }
+
             // TODO: Add calibration step
 
-            // main loop
+            // Update button state to start or stop following angle
+            if (buttonState == ButtonState::longPress) {
+                if (!mainState.active) {
+                    mainState.active = true;
+                    Serial.println("Following angle");
+                }
+            } else if (buttonState == ButtonState::shortPress) {
+                if (mainState.active) {
+                    mainState.active = false;
+                    Serial.println("Not following angle");
+                }
+            }
+
+            // Receive angle from leader
+            mainState.kneeFlexion = followerCommunication->getValue();
+
+            if (mainState.active) {
+                // set motor angle as setpoint for the motor controller
+
+                // TODO: add safety checks on the value send to the motor
+
+                // DEBUG: print received angle
+                Serial.println("Angle setpoint: " + String(mainState.kneeFlexion));
+            }
 
             // if (mainState.connectionStepDone) {
             //     // followerBLEHandler->loop();

@@ -4,16 +4,22 @@
 #include <esp_now.h>
 
 #include "../../base/follower.h"
-#include "../mac_addresses.h"
 
 class EspNowFollower : public FollowerComService {
    public:
-    EspNowLeader(float& valueRef);
+    bool init() override;
 
-    void receive();
+    bool isConnected() override;
+
+    bool update() override;
+
+    float getValue() override;
 
    private:
-    float& valueRef;
+    float value = 0.0f;
+
+    static void onDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len);
+
 };
 
 #endif  // ESP_NOW_FOLLOWER_H

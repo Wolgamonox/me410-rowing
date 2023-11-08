@@ -3,8 +3,17 @@
 
 class FollowerComService {
    public:
-    // Receive callback
-    virtual void receive() = 0;
+    // Initialize the communication service
+    virtual bool init() = 0;
+
+    // Checks for connection
+    virtual bool isConnected() = 0;
+
+    // Check for new data
+    virtual bool update() = 0;
+
+    // Get the last received value
+    virtual float getValue() = 0;
 };
 
 #endif  // FOLLOWER_H

@@ -10,16 +10,18 @@ const bool ENCRYPT = false;
 
 class EspNowLeader : public LeaderComService {
    public:
-    EspNowLeader(float& valueRef);
+    bool init() override;
 
-    bool init();
+    bool isConnected() override;
 
-    bool attach();
-    void notify();
+    void send(const float& value) override;
 
    private:
-    float& valueRef;
     esp_now_peer_info_t peerInfo;
+
+    static void onDataSent(const uint8_t* macAddr, esp_now_send_status_t status);
+
+    uint8_t* getPeerMacAddress();
 };
 
 #endif  // ESP_NOW_LEADER_H
