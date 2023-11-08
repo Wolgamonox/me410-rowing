@@ -102,7 +102,6 @@ void loop() {
     // DEBUG: simulate button presses with serial commands
     // "BS" = button short press
     // "BL" = button long press
-    // "B3" = button triple presses
     if (Serial.available()) {
         String command = Serial.readStringUntil('\n');
         Serial.print("Serial command received: " + command);

@@ -4,6 +4,9 @@
 
 #include "../mac_addresses.h"
 
+// define default values
+esp_now_send_status_t EspNowLeader::lastPacketSendStatus = ESP_NOW_SEND_FAIL;
+
 bool EspNowLeader::init() {
     WiFi.mode(WIFI_STA);
     if (esp_now_init() != ESP_OK) {
@@ -21,14 +24,15 @@ bool EspNowLeader::init() {
     memcpy(peerInfo.peer_addr, getPeerMacAddress(), 6);
     if (esp_now_add_peer(&peerInfo) != ESP_OK) {
         Serial.println("Failed to add peer");
-        return;
+        return false;
     }
+
+    return true;
 }
 
 bool EspNowLeader::isConnected() {
-    uint8_t leaderHello[] = {0xDE, 0xAD, 0xBE, 0xEF};
-    esp_err_t result = esp_now_send(peerInfo.peer_addr, (uint8_t*)&leaderHello, 4);
-    return (result == ESP_OK);
+    esp_err_t result = esp_now_send(peerInfo.peer_addr, (uint8_t*)&LEADER_HELLO, 4);
+    return lastPacketSendStatus == ESP_NOW_SEND_SUCCESS;
 }
 
 void EspNowLeader::send(const float& value) {
@@ -36,6 +40,8 @@ void EspNowLeader::send(const float& value) {
 }
 
 void EspNowLeader::onDataSent(const uint8_t* mac_addr, esp_now_send_status_t status) {
+    lastPacketSendStatus = status;
+
     char macStr[18];
     Serial.print("Packet from: ");
     // Copies the sender mac address to a string

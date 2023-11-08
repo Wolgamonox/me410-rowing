@@ -4,6 +4,7 @@
 #include <esp_now.h>
 
 #include "../../base/follower.h"
+#include "../leader/esp_now_leader.h"
 
 class EspNowFollower : public FollowerComService {
    public:
@@ -11,12 +12,14 @@ class EspNowFollower : public FollowerComService {
 
     bool isConnected() override;
 
-    bool update() override;
+    void update() override;
 
     float getValue() override;
 
    private:
-    float value = 0.0f;
+    static float value;
+
+    static bool connected;
 
     static void onDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len);
 

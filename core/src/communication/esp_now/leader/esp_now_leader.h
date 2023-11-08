@@ -5,8 +5,9 @@
 
 #include "../../base/leader.h"
 
-const int CHANNEL = 43;
+const int CHANNEL = 0;
 const bool ENCRYPT = false;
+const uint8_t LEADER_HELLO[] = {0xDE, 0xAD, 0xBE, 0xEF};
 
 class EspNowLeader : public LeaderComService {
    public:
@@ -18,6 +19,7 @@ class EspNowLeader : public LeaderComService {
 
    private:
     esp_now_peer_info_t peerInfo;
+    static esp_now_send_status_t lastPacketSendStatus;
 
     static void onDataSent(const uint8_t* macAddr, esp_now_send_status_t status);
 

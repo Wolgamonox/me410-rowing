@@ -10,7 +10,7 @@ class FollowerComService {
     virtual bool isConnected() = 0;
 
     // Check for new data
-    virtual bool update() = 0;
+    virtual void update() = 0;
 
     // Get the last received value
     virtual float getValue() = 0;
