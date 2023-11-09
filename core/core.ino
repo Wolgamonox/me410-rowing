@@ -24,6 +24,23 @@ const int CONNECTION_LED_PIN = GPIO_NUM_27;
 // If this pin is grounded, we will use wired communication instead of wireless
 const int COMM_OVERRIDE_PIN = GPIO_NUM_32;
 
+// I2C, not used in the code but mark here so we don't use the pins for something else
+const int I2C_SDA_PIN = GPIO_NUM_21;
+const int I2C_SCL_PIN = GPIO_NUM_22;
+
+/*
+
+To activate fast I2C, follow the instructions here:
+
+- go to hardware/libraries/Wire/utility/twi.h.
+- change the line
+    #define TWI_FREQ 100000L
+  to
+    #define TWI_FREQ 400000L
+- restart arduino ide to rebuild the library
+
+*/
+
 // Main state of the device
 struct MainState {
     enum Role {
