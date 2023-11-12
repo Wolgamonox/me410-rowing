@@ -3,27 +3,24 @@
 #include <Arduino.h>
 #include <Wire.h>
 
-bool WiredLeader::init() {
-    return Wire.begin();
-}
-
-
-
+bool WiredLeader::init() { return Wire.begin(); }
 
 bool WiredLeader::isConnected() {
-    // Read 4 bytes from the slave
-    uint8_t bytesReceived = Wire.requestFrom(I2C_FOLLOWER_ADDRESS, 4);
-    Serial.printf("requestFrom: %u\n", bytesReceived);
-    if ((bool)bytesReceived) {  // If received more than zero bytes
-        uint8_t temp[bytesReceived];
-        Wire.readBytes(temp, bytesReceived);
-        log_print_buf(temp, bytesReceived);
+  uint8_t bytesReceived = Wire.requestFrom(I2C_FOLLOWER_ADDRESS, 1);
+  if ((bool)bytesReceived) {  // If received more than zero bytes
+    uint8_t temp[bytesReceived];
+    Wire.readBytes(temp, bytesReceived);
+    if (temp[0] == ACK_CHAR) {
+      return true;
     }
+  }
+
+  return false;
 }
 
 void WiredLeader::send(const float& value) {
-    // Wire.beginTransmission(I2C_FOLLOWER_ADDRESS);
-    // Wire.println();
-    // uint8_t error = Wire.endTransmission(true);
-    // Serial.printf("Sending leader hello: %u\n", error);
+  Wire.beginTransmission(I2C_FOLLOWER_ADDRESS);
+  Wire.write((uint8_t*)&value, sizeof(value));
+  uint8_t error = Wire.endTransmission(true);
+  Serial.printf("endTransmission: %u\n", error);
 }
