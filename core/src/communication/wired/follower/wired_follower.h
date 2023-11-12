@@ -3,7 +3,7 @@
 
 #include "../../base/follower.h"
 
-const int FOLLOWER_ADDRESS = 0x43;
+const int I2C_FOLLOWER_ADDRESS = 0x43;
 
 class WiredFollower : public FollowerComService {
    public:
