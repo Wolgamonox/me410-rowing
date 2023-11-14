@@ -1,9 +1,6 @@
 #include "button.h"
 
-Button::Button() {
-}
-
-Button::~Button() {
+Button::Button(int buttonPin) : buttonObject(buttonPin) {
 }
 
 void Button::setup() {
@@ -13,7 +10,7 @@ void Button::setup() {
 void Button::loop() {
     buttonObject.loop();
 
-    buttonState = ButtonState::NONE;
+    buttonState = ButtonState::none;
 
     if (buttonObject.isPressed()) {
         pressedTime = millis();
@@ -28,7 +25,7 @@ void Button::loop() {
         long pressDuration = releasedTime - pressedTime;
 
         if (pressDuration < SHORT_PRESS_TIME) {
-            buttonState = ButtonState::SHORT_PRESS;
+            buttonState = ButtonState::shortPress;
         }
     }
 
@@ -36,7 +33,7 @@ void Button::loop() {
         long pressDuration = millis() - pressedTime;
 
         if (pressDuration > LONG_PRESS_TIME) {
-            buttonState = ButtonState::LONG_PRESS;
+            buttonState = ButtonState::longPress;
             isLongDetected = true;
         }
     }
