@@ -32,6 +32,8 @@ static const byte MCP2517_SCK = 18;   // SCK input of MCP2517FD
 static const byte MCP2517_MOSI = 19;  // SDI input of MCP2517FD
 static const byte MCP2517_MISO = 23;  // SDO output of MCP2517FD
 
+
+// With pull up 10k resistor
 static const byte MCP2517_CS = 16;   // CS input of MCP2517FD
 static const byte MCP2517_INT = 17;  // INT output of MCP2517FD
 
@@ -67,7 +69,7 @@ void setup() {
     Serial.println(" bytes");
     Serial.println("Configure ACAN2517FD");
     //--- For version >= 2.1.0
-    ACAN2517FDSettings settings(ACAN2517FDSettings::OSC_40MHz, 125 * 1000, DataBitRateFactor::x1);
+    ACAN2517FDSettings settings(ACAN2517FDSettings::OSC_20MHz, 125 * 1000, DataBitRateFactor::x1);
     //--- For version < 2.1.0
     //  ACAN2517FDSettings settings (ACAN2517FDSettings::OSC_4MHz10xPLL, 125 * 1000, ACAN2517FDSettings::DATA_BITRATE_x1) ;
     settings.mRequestedMode = ACAN2517FDSettings::InternalLoopBack;  // Select loopback mode
@@ -91,6 +93,8 @@ void setup() {
         Serial.println(" bit/s");
         Serial.print("Exact Arbitration Bit Rate ? ");
         Serial.println(settings.exactArbitrationBitRate() ? "yes" : "no");
+        Serial.print("Can bit consistency: ");
+        Serial.println(settings.CANBitSettingConsistency());
         Serial.print("Arbitration Sample point: ");
         Serial.print(settings.arbitrationSamplePointFromBitStart());
         Serial.println("%");
