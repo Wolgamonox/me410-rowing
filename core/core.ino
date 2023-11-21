@@ -9,10 +9,12 @@
 // PIN CONFIGURATION
 
 // SPI
-const int SPI_MISO_PIN = GPIO_NUM_19;
-const int SPI_MOSI_PIN = GPIO_NUM_23;
-const int SPI_SCLK_PIN = GPIO_NUM_18;
-const int SPI_SS_PIN = GPIO_NUM_5;
+const int SPI_SCLK_PIN = GPIO_NUM_17;
+const int SPI_MISO_PIN = GPIO_NUM_16;   // SDO output of MCP2517FD
+const int SPI_MOSI_PIN = GPIO_NUM_4;    // SDI input of MCP2517FD
+
+const int SPI_CS_PIN = GPIO_NUM_18;
+const int SPI_INT_PIN = GPIO_NUM_19;
 
 // Button
 const int BUTTON_PIN = GPIO_NUM_4;
@@ -31,7 +33,6 @@ const int COMM_OVERRIDE_PIN = GPIO_NUM_32;
 const int I2C_SDA_PIN = GPIO_NUM_21;
 const int I2C_SCL_PIN = GPIO_NUM_22;
 
-// TODO: Clean code !!
 
 // Main state of the device
 struct MainState {
@@ -74,13 +75,15 @@ FollowerComService* followerCommunication;
 int beaconPeriod = 1000;
 unsigned long startTime = 0;
 
-ezLED leaderLED(GPIO_NUM_18);
-ezLED followerLED(GPIO_NUM_19);
-ezLED bluetoothLED(GPIO_NUM_21);
+ezLED leaderLED(LEADER_LED_PIN);
+ezLED followerLED(FOLLOWER_LED_PIN);
+ezLED bluetoothLED(BLUETOOTH_LED_PIN);
 
 void setup() {
   Serial.begin(115200);
   Serial.println("Device started.");
+
+  SPI.begin(SPI_SCLK_PIN, SPI_MISO_PIN, SPI_MOSI_PIN);
 
   button.setup();
 
@@ -259,39 +262,6 @@ void loop() {
         // DEBUG: print received angle
         Serial.println("Angle setpoint: " + String(mainState.kneeFlexion));
       }
-
-      // if (mainState.connectionStepDone) {
-      //     // followerBLEHandler->loop();
-
-      //     // mainState.connected = followerBLEHandler->isConnected();
-      //     if (mainState.connected) {
-      //         if (buttonState == ButtonState::longPress) {
-      //             if (!mainState.following) {
-      //                 mainState.following = true;
-      //                 Serial.println("Following");
-      //             }
-      //         } else if (buttonState == ButtonState::shortPress) {
-      //             if (mainState.following) {
-      //                 mainState.following = false;
-      //                 Serial.println("Not following");
-      //             }
-      //         }
-      //     }
-
-      //     if (mainState.following) {
-      //         // if (fabs(mainState.kneeFlexion -
-      //         followerBLEHandler->getKneeFlexion()) > 0.001f) {
-      //         //     mainState.kneeFlexion =
-      //         followerBLEHandler->getKneeFlexion();
-
-      //         //     Serial.println("Knee flexion: " +
-      //         String(mainState.kneeFlexion));
-      //         // }
-
-      //         // delay for debugging
-      //         // delay(100);
-      //     }
-      // }
 
       break;
   }
