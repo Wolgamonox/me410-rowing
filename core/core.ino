@@ -1,38 +1,49 @@
+#include <SPI.h>
 #include <ezLED.h>
 
 #include "src/button/button.h"
+#include "src/buzzer.h"
 #include "src/communication/esp_now/follower/esp_now_follower.h"
 #include "src/communication/esp_now/leader/esp_now_leader.h"
 #include "src/communication/wired/follower/wired_follower.h"
 #include "src/communication/wired/leader/wired_leader.h"
 
+#define DEBUG
+
+#ifdef DEBUG
+#define debugPrint(x) Serial.println(x)
+#else
+#define debugPrint(x)
+#endif
+
 // PIN CONFIGURATION
 
 // SPI
 const int SPI_SCLK_PIN = GPIO_NUM_17;
-const int SPI_MISO_PIN = GPIO_NUM_16;   // SDO output of MCP2517FD
-const int SPI_MOSI_PIN = GPIO_NUM_4;    // SDI input of MCP2517FD
+const int SPI_MISO_PIN = GPIO_NUM_16;  // SDO output of MCP2517FD
+const int SPI_MOSI_PIN = GPIO_NUM_4;   // SDI input of MCP2517FD
 
 const int SPI_CS_PIN = GPIO_NUM_18;
-const int SPI_INT_PIN = GPIO_NUM_19;
+const int SPI_INT_PIN = GPIO_NUM_21;
 
 // Button
-const int BUTTON_PIN = GPIO_NUM_4;
+const int BUTTON_PIN = GPIO_NUM_32;
 
 // LEDs
-const int LEADER_LED_PIN = GPIO_NUM_25;
-const int FOLLOWER_LED_PIN = GPIO_NUM_26;
-const int CONNECTION_LED_PIN = GPIO_NUM_27;
+const int STATUS_LED_PIN = GPIO_NUM_14;
+const int CONNECTION_LED_PIN = GPIO_NUM_26;
+
+// Buzzer
+const int BUZZER_PIN = GPIO_NUM_13;
 
 // Override pin for communication
 // If this pin is grounded, we will use wired communication instead of wireless
-const int COMM_OVERRIDE_PIN = GPIO_NUM_32;
+const int COMM_OVERRIDE_PIN = GPIO_NUM_19;
 
 // I2C, not used in the code but mark here so we don't use the pins for
 // something else
-const int I2C_SDA_PIN = GPIO_NUM_21;
-const int I2C_SCL_PIN = GPIO_NUM_22;
-
+const int I2C_SDA_PIN = GPIO_NUM_22;
+const int I2C_SCL_PIN = GPIO_NUM_23;
 
 // Main state of the device
 struct MainState {
@@ -67,6 +78,8 @@ struct MainState {
 Button button(BUTTON_PIN);
 ButtonState buttonState = ButtonState::none;
 
+Buzzer buzzer(BUZZER_PIN);
+
 // Communication
 LeaderComService* leaderCommunication;
 FollowerComService* followerCommunication;
@@ -75,9 +88,8 @@ FollowerComService* followerCommunication;
 int beaconPeriod = 1000;
 unsigned long startTime = 0;
 
-ezLED leaderLED(LEADER_LED_PIN);
-ezLED followerLED(FOLLOWER_LED_PIN);
-ezLED bluetoothLED(BLUETOOTH_LED_PIN);
+ezLED statusLED(STATUS_LED_PIN);
+ezLED connectionLED(CONNECTION_LED_PIN);
 
 void setup() {
   Serial.begin(115200);
@@ -94,15 +106,13 @@ void setup() {
   // the pin
   //   pinMode(COMM_OVERRIDE_PIN, INPUT);
 
-  leaderLED.turnON();
-  followerLED.turnON();
-  bluetoothLED.turnON();
+  statusLED.turnON();
+  connectionLED.turnON();
 
   delay(1000);
 
-  leaderLED.turnOFF();
-  followerLED.turnOFF();
-  bluetoothLED.turnOFF();
+  statusLED.turnOFF();
+  connectionLED.turnOFF();
 
   Serial.println("Setup done.");
 }
@@ -110,9 +120,8 @@ void setup() {
 void loop() {
   button.loop();
 
-  leaderLED.loop();
-  followerLED.loop();
-  bluetoothLED.loop();
+  statusLED.loop();
+  connectionLED.loop();
 
   buttonState = button.getButtonState();
 
@@ -147,6 +156,12 @@ void loop() {
       if (buttonState == ButtonState::longPress) {
         mainState.role = MainState::Role::LEADER;
 
+        buzzer.leaderTone();
+
+        // Turn off led so that it can blink at a different rate
+        // when we set the leds
+        connectionLED.turnOFF();
+
         Serial.println("Role set to leader");
 
         if (digitalRead(COMM_OVERRIDE_PIN) == LOW) {
@@ -161,6 +176,12 @@ void loop() {
 
       } else if (buttonState == ButtonState::shortPress) {
         mainState.role = MainState::Role::FOLLOWER;
+
+        buzzer.followerTone();
+        // Turn off led so that it can blink at a different rate
+        // when we set the leds
+        connectionLED.turnOFF();
+
         Serial.println("Role set to follower");
 
         if (digitalRead(COMM_OVERRIDE_PIN) == LOW) {
@@ -185,6 +206,7 @@ void loop() {
 
           if (leaderCommunication->isConnected()) {
             mainState.connected = true;
+            buzzer.connectionTone();
             Serial.println("Connected");
           }
         }
@@ -231,6 +253,7 @@ void loop() {
       if (!mainState.connected) {
         if (followerCommunication->isConnected()) {
           mainState.connected = true;
+          buzzer.connectionTone();
           Serial.println("Connected");
         }
         break;
@@ -272,44 +295,45 @@ void loop() {
 
 void setLeds() {
   if (mainState.connected) {
-    bluetoothLED.turnON();
+    connectionLED.turnON();
   } else {
     switch (mainState.role) {
       case MainState::Role::NOT_SET:
-        bluetoothLED.turnOFF();
+        if (connectionLED.getState() != LED_BLINKING) {
+          connectionLED.blink(1000, 1000);
+        }
         break;
       case MainState::Role::LEADER:
       case MainState::Role::FOLLOWER:
-        if (bluetoothLED.getState() != LED_BLINKING) {
-          bluetoothLED.blink(500, 500);
+        if (connectionLED.getState() != LED_BLINKING) {
+          connectionLED.blink(250, 250);
         }
         break;
     }
   }
+
   switch (mainState.role) {
     case MainState::Role::NOT_SET:
-      leaderLED.turnOFF();
-      followerLED.turnOFF();
+      if (statusLED.getState() != LED_BLINKING) {
+        statusLED.blink(1000, 1000);
+      }
       break;
     case MainState::Role::LEADER:
       if (mainState.active) {
-        if (leaderLED.getState() != LED_BLINKING) {
-          leaderLED.blink(300, 300);
+        if (statusLED.getState() != LED_BLINKING) {
+          statusLED.blink(250, 250);
         }
       } else {
-        leaderLED.turnON();
+        statusLED.turnON();
       }
-
-      followerLED.turnOFF();
       break;
     case MainState::Role::FOLLOWER:
-      leaderLED.turnOFF();
       if (mainState.active) {
-        if (followerLED.getState() != LED_BLINKING) {
-          followerLED.blink(300, 300);
+        if (statusLED.getState() != LED_BLINKING) {
+          statusLED.blink(250, 250);
         }
       } else {
-        followerLED.turnON();
+        statusLED.turnOFF();
       }
       break;
   }
