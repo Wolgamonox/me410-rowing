@@ -9,28 +9,37 @@
 #include "src/communication/wired/follower/wired_follower.h"
 #include "src/communication/wired/leader/wired_leader.h"
 
+// Upload on follower or leader
+#define UPLOAD_FOLLOWER
+
 // PIN CONFIGURATION
 
 // SPI
-const int SPI_SCLK_PIN = GPIO_NUM_18;
-const int SPI_MISO_PIN = GPIO_NUM_23;   // SDO output of MCP2517FD
-const int SPI_MOSI_PIN = GPIO_NUM_19;    // SDI input of MCP2517FD
+const int SPI_SCLK_PIN = GPIO_NUM_17;
+const int SPI_MISO_PIN = GPIO_NUM_16;   // SDO output of MCP2517FD
+const int SPI_MOSI_PIN = GPIO_NUM_4;    // SDI input of MCP2517FD
 
-const int SPI_CS_PIN = GPIO_NUM_16;
-const int SPI_INT_PIN = GPIO_NUM_17;
+const int SPI_CS_PIN = GPIO_NUM_18;
+const int SPI_INT_PIN = GPIO_NUM_21;
 
-// ACAN2517FD
-ACAN2517FD can(SPI_CS_PIN, SPI, SPI_INT_PIN);
+#ifdef UPLOAD_FOLLOWER
+  // ACAN2517FD
+  ACAN2517FD can(SPI_CS_PIN, SPI, SPI_INT_PIN);
 
-// Moteus motor
-Moteus moteus1(can, []() {
-  Moteus::Options options;
-  options.id = 1;
-  return options;
-}());
+  // Moteus motor
+  Moteus moteus1(can, []() {
+    Moteus::Options options;
+    options.id = 1;
+    return options;
+  }());
 
-Moteus::PositionMode::Command position_cmd;
-Moteus::PositionMode::Format position_fmt;
+  Moteus::PositionMode::Command position_cmd;
+  Moteus::PositionMode::Format position_fmt;
+#endif
+
+// Motor utils
+static uint32_t gNextSendMillis = 0;
+const float POS_ERROR = 0.005;
 
 // Button
 const int BUTTON_PIN = GPIO_NUM_2;
@@ -40,9 +49,9 @@ const int LEADER_LED_PIN = GPIO_NUM_25;
 const int FOLLOWER_LED_PIN = GPIO_NUM_26;
 const int CONNECTION_LED_PIN = GPIO_NUM_27;
 
-// Encoder
-const int ENCODER_PIN = GPIO_NUM_0;
-float encoder_val = 0.;
+// Encoder (for leader!)
+const int ENCODER_PIN = GPIO_NUM_35; 
+int encoder_val = 0;
 
 // Override pin for communication
 // If this pin is grounded, we will use wired communication instead of wireless
@@ -107,29 +116,47 @@ void setup() {
 
   button.setup();
 
-  // ACAN2517FD setup
-  ACAN2517FDSettings settings(ACAN2517FDSettings::OSC_20MHz, 1000 * 1000, DataBitRateFactor::x5);
-  // settings.mRequestedMode = ACAN2517FDSettings::ExternalLoopBack; // not sure if we need to keep that
-  settings.mArbitrationSJW = 2;
-  settings.mDriverTransmitFIFOSize = 1;
-  settings.mDriverReceiveFIFOSize = 2;
+  // Setup for encoder
+  //set the resolution to 12 bits (0-4096)
+  analogReadResolution(12);
 
-  const uint32_t errorCode = can.begin(settings, [] { can.isr(); }); // CAN error codes
-  while (errorCode != 0) {
-    Serial.print(F("CAN error 0x"));
-    Serial.println(errorCode, HEX);
-    delay(1000);
-  }
+  #ifdef UPLOAD_FOLLOWER
+    // ACAN2517FD setup
+    ACAN2517FDSettings settings(ACAN2517FDSettings::OSC_20MHz, 1000 * 1000, DataBitRateFactor::x5);
+    //settings.mRequestedMode = ACAN2517FDSettings::ExternalLoopBack; // not sure if we need to keep that
+    settings.mArbitrationSJW = 2;
+    settings.mDriverTransmitFIFOSize = 1;
+    settings.mDriverReceiveFIFOSize = 2;
 
-  // Moteus setup
-  moteus1.SetStop();
-  Serial.println(F("all stopped"));
+    const uint32_t errorCode = can.begin(settings, [] { can.isr(); }); // CAN error codes
+    while (errorCode != 0) {
+      Serial.print(F("CAN error 0x"));
+      Serial.println(errorCode, HEX);
+      delay(1000);
+    }
 
-  position_fmt.velocity_limit = Moteus::kFloat;
-  position_fmt.accel_limit = Moteus::kFloat;
+    // Moteus setup
+    moteus1.SetStop();
+    moteus1.SetBrake();
+    Serial.println(F("all stopped"));
 
-  position_cmd.velocity_limit = 2.0;
-  position_cmd.accel_limit = 3.0;
+    position_fmt.velocity_limit = Moteus::kFloat;
+    position_fmt.accel_limit = Moteus::kFloat;
+
+    position_cmd.velocity_limit = 2.0;
+    position_cmd.accel_limit = 3.0;
+
+    moteus1.DiagnosticCommand(F("conf set servo.pid_position.kp 2.5"));
+    moteus1.DiagnosticCommand(F("conf set servo.pid_position.kd 0.3"));
+
+    const auto current_kp = moteus1.DiagnosticCommand(F("conf get servo.pid_position.kp"), Moteus::kExpectSingleLine);
+    const auto current_kd = moteus1.DiagnosticCommand(F("conf get servo.pid_position.kd"), Moteus::kExpectSingleLine);
+    Serial.println("Motor Kp:");
+    Serial.println(current_kp);
+    Serial.println("Motor Kd:");
+    Serial.println(current_kd);
+
+  #endif
 
   // If pin is grounded, use wired communication
   pinMode(COMM_OVERRIDE_PIN, INPUT_PULLUP);
@@ -256,8 +283,8 @@ void loop() {
       // TODO: relace with actual angle sensor and scaling function
       // DEBUG: fake angle
       encoder_val = analogRead(ENCODER_PIN);
-      Serial.println("Leader angle value:");
-      mainState.kneeFlexion = map(encoder_val, 0, 1023, 0, 1); // map to motor values between 0 and 1
+      mainState.kneeFlexion = encoder_val/4096.; // map to motor values between 0 and 1
+      Serial.println("Motor angle value:");
       Serial.println(mainState.kneeFlexion);
       //mainState.kneeFlexion = random(0, 10000) / 100.0f;
 
@@ -267,7 +294,8 @@ void loop() {
       }
 
       // DEBUG: delay for sending messages
-      delay(2000);
+      //delay(2000);
+      delay(10);
 
       break;
 
@@ -303,9 +331,21 @@ void loop() {
       mainState.kneeFlexion = followerCommunication->getValue();
 
       if (mainState.active) {
-        // set motor angle as setpoint for the motor controller
-        position_cmd.position = mainState.kneeFlexion;
-        moteus1.SetPositionWaitComplete(position_cmd, 0.02, &position_fmt);
+        const auto time = millis();
+        #ifdef UPLOAD_FOLLOWER
+          const auto& v = moteus1.last_result().values;
+          float current_motor_pos = v.position;
+          if(abs(current_motor_pos-mainState.kneeFlexion) <= POS_ERROR){
+            moteus1.DiagnosticCommand(F("conf set servo.pid_position.kp 0.01"));
+          }else if (gNextSendMillis < time) { // send motor command every 20ms //TODO Check if useful
+            moteus1.DiagnosticCommand(F("conf set servo.pid_position.kp 2.5"));
+            gNextSendMillis += 20;
+            // set motor angle as setpoint for the motor controller
+            position_cmd.position = mainState.kneeFlexion;
+            position_cmd.velocity = 1.;
+            moteus1.SetPosition(position_cmd, &position_fmt);
+          }
+        #endif
         // TODO: add print_state function from moteus code
 
         // TODO: add safety checks on the value send to the motor
