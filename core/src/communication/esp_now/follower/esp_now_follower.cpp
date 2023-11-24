@@ -2,6 +2,8 @@
 
 #include <WiFi.h>
 
+#include "../../../definitions.h"
+
 // define default values
 float EspNowFollower::value = 0.0f;
 bool EspNowFollower::connected = false;
@@ -11,7 +13,7 @@ bool EspNowFollower::init() {
 
   // Init ESP-NOW
   if (esp_now_init() != ESP_OK) {
-    Serial.println("Error initializing ESP-NOW");
+    debugPrintln("Error initializing ESP-NOW");
     return false;
   }
 
@@ -33,18 +35,16 @@ void EspNowFollower::onDataRecv(const uint8_t *mac, const uint8_t *incomingData,
         incomingData[1] == LEADER_HELLO[1] &&
         incomingData[2] == LEADER_HELLO[2] &&
         incomingData[3] == LEADER_HELLO[3]) {
-      Serial.println("Received leader hello");
+      debugPrintln("Received leader hello");
       connected = true;
     }
   }
 
-  Serial.print("Bytes received: ");
-  Serial.println(len);
-  Serial.print("raw: ");
-  Serial.printf("%02X:%02X:%02X:%02X\n", incomingData[0], incomingData[1],
-                incomingData[2], incomingData[3]);
-  Serial.printf("%02X:%02X:%02X:%02X\n", LEADER_HELLO[0], LEADER_HELLO[1],
-                LEADER_HELLO[2], LEADER_HELLO[3]);
-  Serial.print("value: ");
-  Serial.println(value);
+  debugPrint("Bytes received: ");
+  debugPrintln(len);
+  debugPrint("raw: ");
+  debugPrintf("%02X:%02X:%02X:%02X\n", incomingData[0], incomingData[1],
+              incomingData[2], incomingData[3]);
+  debugPrint("value: ");
+  debugPrintln(value);
 }

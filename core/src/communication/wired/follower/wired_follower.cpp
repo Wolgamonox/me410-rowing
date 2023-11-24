@@ -3,6 +3,8 @@
 #include <Arduino.h>
 #include <Wire.h>
 
+#include "../../../definitions.h"
+
 // define default values
 float WiredFollower::value = 0.0f;
 bool WiredFollower::connected = false;
@@ -22,7 +24,7 @@ void WiredFollower::onReceive(int bytesReceived) {
   Wire.readBytes(incomingData, bytesReceived);
 
   memcpy(&value, incomingData, sizeof(value));
-  Serial.println(value, 4);
+  debugPrintln(value, 4);
 }
 
 void WiredFollower::onRequest() {

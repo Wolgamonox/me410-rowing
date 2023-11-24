@@ -3,6 +3,8 @@
 #include <Arduino.h>
 #include <Wire.h>
 
+#include "../../../definitions.h"
+
 bool WiredLeader::init() { return Wire.begin(); }
 
 bool WiredLeader::isConnected() {
@@ -22,5 +24,5 @@ void WiredLeader::send(const float& value) {
   Wire.beginTransmission(I2C_FOLLOWER_ADDRESS);
   Wire.write((uint8_t*)&value, sizeof(value));
   uint8_t error = Wire.endTransmission(true);
-  Serial.printf("endTransmission: %u\n", error);
+  debugPrintf("endTransmission: %u\n", error);
 }
