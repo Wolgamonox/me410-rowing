@@ -15,7 +15,7 @@
 
 // Upload on follower or leader
 // Comment out to upload on leader
-#define UPLOAD_FOLLOWER
+// #define UPLOAD_FOLLOWER
 
 // PIN CONFIGURATION
 
@@ -117,7 +117,7 @@ ezLED connectionLED(CONNECTION_LED_PIN);
 
 void setup() {
   Serial.begin(UART_BAUD_RATE);
-  debugPrint("Device started.");
+  debugPrintln("Device started.");
 
   SPI.begin(SPI_SCLK_PIN, SPI_MISO_PIN, SPI_MOSI_PIN);
 
@@ -286,11 +286,13 @@ void loop() {
       if (buttonState == ButtonState::longPress) {
         if (!mainState.active) {
           mainState.active = true;
+          buzzer.activationTone();
           debugPrintln("Sending angle");
         }
       } else if (buttonState == ButtonState::shortPress) {
         if (mainState.active) {
           mainState.active = false;
+          buzzer.deactivationTone();
           debugPrintln("Not sending angle");
         }
       }
@@ -298,14 +300,16 @@ void loop() {
       // Sense angle
       encoder_val = analogRead(ENCODER_PIN);
       mainState.kneeFlexion = encoder_val / 4096.;  // map to motor values between 0 and 1
-      debugPrint("Motor angle value: ");
-      debugPrintln(mainState.kneeFlexion);
+
       // DEBUG: fake angle
       // mainState.kneeFlexion = random(0, 10000) / 100.0f;
 
       if (mainState.active) {
         // Send angle
         leaderCommunication->send(mainState.kneeFlexion);
+
+        debugPrint("Motor angle value: ");
+        debugPrintln(mainState.kneeFlexion);
       }
 
       // DEBUG: delay for sending messages
@@ -334,11 +338,13 @@ void loop() {
       if (buttonState == ButtonState::longPress) {
         if (!mainState.active) {
           mainState.active = true;
+          buzzer.activationTone();
           debugPrintln("Following angle");
         }
       } else if (buttonState == ButtonState::shortPress) {
         if (mainState.active) {
           mainState.active = false;
+          buzzer.deactivationTone();
           debugPrintln("Not following angle");
         }
       }
@@ -367,15 +373,17 @@ void loop() {
         // TODO: add safety checks on the value send to the motor
 
         // DEBUG: print received angle
-        debugPrintln("Angle setpoint: " + String(mainState.kneeFlexion));
+        // debugPrintln("Angle setpoint: " + String(mainState.kneeFlexion));
       }
 
       break;
   }
 
   // set leds to reflect current status
-  setLeds();
+  // setLeds();
 }
+
+
 
 void setLeds() {
   if (mainState.connected) {

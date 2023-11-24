@@ -24,6 +24,18 @@ class Buzzer {
         tone(buzzerPin, 1000, 150);
     }
 
+    void activationTone() {
+        tone(buzzerPin, 400, 200);
+        delay(200);
+        tone(buzzerPin, 800, 200);
+    }
+
+    void deactivationTone() {
+        tone(buzzerPin, 800, 200);
+        delay(200);
+        tone(buzzerPin, 400, 200);
+    }
+
    private:
     int buzzerPin;
 };
