@@ -6,6 +6,10 @@ class Buzzer {
         this->buzzerPin = buzzerPin;
     }
 
+    void beep() {
+        tone(buzzerPin, 800, 300);
+    }
+
     void leaderTone() {
         tone(buzzerPin, 800, 500);
     }
