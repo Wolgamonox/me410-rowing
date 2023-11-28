@@ -380,10 +380,8 @@ void loop() {
   }
 
   // set leds to reflect current status
-  // setLeds();
+  setLeds();
 }
-
-
 
 void setLeds() {
   if (mainState.connected) {
