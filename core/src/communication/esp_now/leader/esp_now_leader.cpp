@@ -21,7 +21,7 @@ bool EspNowLeader::init() {
   peerInfo.channel = CHANNEL;
   peerInfo.encrypt = ENCRYPT;
 
-  // register peer
+  // register peers
   memcpy(peerInfo.peer_addr, getPeerMacAddress(), 6);
   if (esp_now_add_peer(&peerInfo) != ESP_OK) {
     debugPrintln("Failed to add peer");
