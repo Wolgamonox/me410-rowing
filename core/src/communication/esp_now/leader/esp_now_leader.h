@@ -7,7 +7,7 @@
 
 const int CHANNEL = 0;
 const bool ENCRYPT = false;
-const uint8_t LEADER_HELLO[] = {0xDE, 0xAD, 0xBE, 0xEF};
+const uint8_t LEADER_HELLO[] = {0x00, 0x00, 0x00, 0x00};
 
 class EspNowLeader : public LeaderComService {
    public:

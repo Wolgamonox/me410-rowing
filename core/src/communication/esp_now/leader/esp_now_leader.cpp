@@ -58,7 +58,8 @@ uint8_t* EspNowLeader::getPeerMacAddress() {
   uint8_t macAddr[18];
   WiFi.macAddress(macAddr);
 
-  if (macAddr == macAddress1) {
+  if (macAddr[0] == macAddress1[0] && macAddr[1] == macAddress1[1] && macAddr[2] == macAddress1[2] &&
+      macAddr[3] == macAddress1[3] && macAddr[4] == macAddress1[4] && macAddr[5] == macAddress1[5]) {
     return macAddress2;
   } else {
     return macAddress1;
