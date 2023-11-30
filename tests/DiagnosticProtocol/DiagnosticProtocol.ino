@@ -107,6 +107,7 @@ void setup() {
     Serial.print(current_kd);
     Serial.println();
 
+
     position_fmt.velocity_limit = Moteus::kFloat;
     position_fmt.accel_limit = Moteus::kFloat;
 }
@@ -131,6 +132,7 @@ void loop() {
     cmd.accel_limit = 3.0;
 
     moteus1.SetPosition(cmd, &position_fmt);
+    // moteus1.SetBrake();
 
     if (gLoopCount % 10 != 0) {
         return;
