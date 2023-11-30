@@ -129,7 +129,7 @@ void setup() {
 
 #ifdef UPLOAD_FOLLOWER
   // ACAN2517FD setup
-  ACAN2517FDSettings settings(ACAN2517FDSettings::OSC_20MHz, 1000 * 1000, DataBitRateFactor::x5);
+  ACAN2517FDSettings settings(ACAN2517FDSettings::OSC_40MHz, 1000 * 1000, DataBitRateFactor::x5);
   // settings.mRequestedMode = ACAN2517FDSettings::ExternalLoopBack; // not sure if we need to keep that
   settings.mArbitrationSJW = 2;
   settings.mDriverTransmitFIFOSize = 1;
