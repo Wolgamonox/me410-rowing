@@ -15,7 +15,7 @@
 
 // Upload on follower or leader
 // Comment out to upload on leader
-// #define UPLOAD_FOLLOWER
+#define UPLOAD_FOLLOWER
 
 // PIN CONFIGURATION
 
@@ -34,7 +34,7 @@ ACAN2517FD can(SPI_CS_PIN, SPI, SPI_INT_PIN);
 // Moteus motor
 Moteus moteus1(can, []() {
   Moteus::Options options;
-  options.id = 1;
+  options.id = 2;
   return options;
 }());
 
