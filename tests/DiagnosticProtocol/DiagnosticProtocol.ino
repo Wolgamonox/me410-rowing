@@ -12,13 +12,13 @@
 //   The following pins are selected for the CANBed FD board.
 // ——————————————————————————————————————————————————————————————————————————————
 
-static const byte MCP2517_SCK = 18;   // SCK input of MCP2517FD
-static const byte MCP2517_MOSI = 19;  // SDI input of MCP2517FD
-static const byte MCP2517_MISO = 23;  // SDO output of MCP2517FD
+// SPI
+const int SPI_SCLK_PIN = GPIO_NUM_17;
+const int SPI_MISO_PIN = GPIO_NUM_16;  // SDO output of MCP2517FD
+const int SPI_MOSI_PIN = GPIO_NUM_4;   // SDI input of MCP2517FD
 
-// With pull up 10k resistor
-static const byte MCP2517_CS = 16;   // CS input of MCP2517FD
-static const byte MCP2517_INT = 17;  // INT output of MCP2517FD
+const int SPI_CS_PIN = GPIO_NUM_18;
+const int SPI_INT_PIN = GPIO_NUM_21;
 
 static uint32_t gNextSendMillis = 0;
 
@@ -28,11 +28,11 @@ static uint32_t gNextSendMillis = 0;
 //   ACAN2517FD Driver object
 // ——————————————————————————————————————————————————————————————————————————————
 
-ACAN2517FD can(MCP2517_CS, SPI, MCP2517_INT);
+ACAN2517FD can(SPI_CS_PIN, SPI, SPI_INT_PIN);
 
 Moteus moteus1(can, []() {
     Moteus::Options options;
-    options.id = 1;
+    options.id = 2;
     // By default, only position and velocity are queried.  Additional
     // fields can be requested by changing their resolution in the
     // options structure.
@@ -53,14 +53,14 @@ void setup() {
     }
     Serial.println(F("started"));
 
-    SPI.begin(MCP2517_SCK, MCP2517_MISO, MCP2517_MOSI);
+    SPI.begin(SPI_SCLK_PIN, SPI_MISO_PIN, SPI_MOSI_PIN);
 
     // This operates the CAN-FD bus at 1Mbit for both the arbitration
     // and data rate.  Most arduino shields cannot operate at 5Mbps
     // correctly, so the moteus Arduino library permanently disables
     // BRS.
     ACAN2517FDSettings settings(
-        ACAN2517FDSettings::OSC_20MHz, 1000 * 1000ll, DataBitRateFactor::x5);
+        ACAN2517FDSettings::OSC_40MHz, 1000 * 1000ll, DataBitRateFactor::x5);
 
     // The atmega32u4 on the CANbed has only a tiny amount of memory.
     // The ACAN2517FD driver needs custom settings so as to not exhaust
