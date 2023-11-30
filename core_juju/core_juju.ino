@@ -102,7 +102,7 @@ FollowerComService* followerCommunication;
 
 // Period at which we check if we have a connection
 int beaconPeriod = 1000;
-unsigned long startTime = 0;
+unsigned long beaconTime = 0;
 
 ezLED leaderLED(LEADER_LED_PIN);
 ezLED followerLED(FOLLOWER_LED_PIN);
@@ -251,8 +251,8 @@ void loop() {
       // while not connected, send messages until we get a response
       if (!mainState.connected) {
         // Try to connect periodically
-        if (millis() > startTime + beaconPeriod) {
-          startTime = millis();
+        if (millis() > beaconTime + beaconPeriod) {
+          beaconTime = millis();
 
           if (leaderCommunication->isConnected()) {
             mainState.connected = true;

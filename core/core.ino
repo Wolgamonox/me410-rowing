@@ -15,7 +15,7 @@
 
 // Upload on follower or leader
 // Comment out to upload on leader
-#define UPLOAD_FOLLOWER
+// #define UPLOAD_FOLLOWER
 
 // PIN CONFIGURATION
 
@@ -29,6 +29,7 @@ const int SPI_INT_PIN = GPIO_NUM_21;
 
 // Motor utils
 static uint32_t gNextSendMillis = 0;
+const int millisBetweenSends = 20;
 const float POS_ERROR = 0.005;
 
 // Button
@@ -91,7 +92,6 @@ struct MainState {
   float targetKneeFlexion = 0.0f;
 } mainState;
 
-
 // Motor configuration
 #ifdef UPLOAD_FOLLOWER
 // ACAN2517FD
@@ -122,7 +122,15 @@ FollowerComService* followerCommunication;
 
 // Period at which we check if we have a connection
 int beaconPeriod = 1000;
-unsigned long startTime = 0;
+unsigned long beaconTime = 0;
+
+// Period at which we send messages
+int commPeriod = 5;
+unsigned long commTime = 0;
+
+// Period at which we monitor the angle
+int monitorPeriod = 30;
+unsigned long monitorTime = 0;
 
 ezLED statusLED(STATUS_LED_PIN);
 ezLED connectionLED(CONNECTION_LED_PIN);
@@ -174,12 +182,16 @@ void setup() {
   position_cmd.accel_limit = 3.0;
 
   moteus1.DiagnosticCommand(F("conf set servo.pid_position.kp 2.0"));
+  moteus1.DiagnosticCommand(F("conf set servo.pid_position.ki 1.0"));
   moteus1.DiagnosticCommand(F("conf set servo.pid_position.kd 0.1"));
 
   const auto current_kp = moteus1.DiagnosticCommand(F("conf get servo.pid_position.kp"), Moteus::kExpectSingleLine);
+  const auto current_ki = moteus1.DiagnosticCommand(F("conf get servo.pid_position.ki"), Moteus::kExpectSingleLine);
   const auto current_kd = moteus1.DiagnosticCommand(F("conf get servo.pid_position.kd"), Moteus::kExpectSingleLine);
   debugPrint("KP: ");
   debugPrint(current_kp);
+  debugPrint("KI: ");
+  debugPrint(current_ki);
   debugPrint(" KD: ");
   debugPrintln(current_kd);
 #endif
@@ -285,8 +297,8 @@ void loop() {
       // while not connected, send messages until we get a response
       if (!mainState.connected) {
         // Try to connect periodically
-        if (millis() > startTime + beaconPeriod) {
-          startTime = millis();
+        if (millis() > beaconTime + beaconPeriod) {
+          beaconTime = millis();
 
           if (leaderCommunication->isConnected()) {
             mainState.connected = true;
@@ -343,16 +355,21 @@ void loop() {
       }
 
       if (mainState.active) {
-        // Send angle
-        leaderCommunication->send(mainState.kneeFlexion);
+        // Send angle at a fixed rate
+        if (millis() > commTime + commPeriod) {
+          commTime = millis();
+          leaderCommunication->send(mainState.kneeFlexion);
+        }
 
         debugPrint("Motor angle value: ");
         debugPrintln(mainState.kneeFlexion);
-      }
 
-      // DEBUG: delay for sending messages
-      // TODO: switch to use a non blocking delay with millis()
-      delay(10);
+        // MONITOR: send angle through serial
+        if (millis() > monitorTime + monitorPeriod) {
+          monitorTime = millis();
+          monitorPrintf("%f\n", mainState.kneeFlexion);
+        }
+      }
 
       break;
 
@@ -429,33 +446,31 @@ void loop() {
       if (mainState.active) {
         const auto time = millis();
 
-        if (gNextSendMillis < time) {  // send motor command every 20ms //TODO Check if useful
+        if (gNextSendMillis < time) {  // send motor command every 20ms
           const auto& v = moteus1.last_result().values;
-          float current_motor_pos = v.position;
+          mainState.kneeFlexion = v.position;
 
-          debugPrint("Motor angle value: ");
-          debugPrintln(current_motor_pos);
-          debugPrint("Target angle value: ");
-          debugPrintln(mainState.targetKneeFlexion);
-
-          // if (abs(current_motor_pos - mainState.kneeFlexion) <= POS_ERROR) {  // deadzone threshold
+          // Might not be needed
+          // if (abs(mainState.kneeFlexion - mainState.targetKneeFlexion) <= POS_ERROR) {  // deadzone threshold
           //   moteus1.DiagnosticCommand(F("conf set servo.pid_position.kp 0.01"));
           // } else {
           //   moteus1.DiagnosticCommand(F("conf set servo.pid_position.kp 2.5"));
           // }
 
           // set motor angle as setpoint for the motor controller
-          position_cmd.position = mainState.targetKneeFlexion;
+          // STRANGE: subtract 0.2 to account for the offset of the motor
+          // TODO: solve this offset or at least get a more precise value
+          position_cmd.position = mainState.targetKneeFlexion - 0.2;
           position_cmd.velocity = 1.;
           moteus1.SetPosition(position_cmd, &position_fmt);
 
-          gNextSendMillis += 20;
-          // TODO: add print_state function from moteus code
+          gNextSendMillis += millisBetweenSends;
+        }
 
-          // TODO: add safety checks on the value send to the motor
-
-          // DEBUG: print received angle
-          // debugPrintln("Angle setpoint: " + String(mainState.kneeFlexion));
+        // MONITOR: send angle through serial
+        if (millis() > monitorTime + monitorPeriod) {
+          monitorTime = millis();
+          monitorPrintf("%f\n", mainState.kneeFlexion);
         }
       }
 #endif
