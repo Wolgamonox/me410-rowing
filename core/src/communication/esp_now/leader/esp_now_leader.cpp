@@ -43,6 +43,7 @@ void EspNowLeader::send(const float& value) {
 void EspNowLeader::onDataSent(const uint8_t* mac_addr, esp_now_send_status_t status) {
   lastPacketSendStatus = status;
 
+#if DEBUG == 2
   char macStr[18];
   debugPrint("Packet from: ");
   // Copies the sender mac address to a string
@@ -51,6 +52,7 @@ void EspNowLeader::onDataSent(const uint8_t* mac_addr, esp_now_send_status_t sta
   debugPrint(macStr);
   debugPrint(" send status:\t");
   debugPrintln(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+#endif
 }
 
 uint8_t* EspNowLeader::getPeerMacAddress() {

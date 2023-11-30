@@ -39,7 +39,7 @@ void EspNowFollower::onDataRecv(const uint8_t *mac, const uint8_t *incomingData,
       connected = true;
     }
   }
-
+#if DEBUG == 2
   debugPrint("Bytes received: ");
   debugPrintln(len);
   debugPrint("raw: ");
@@ -47,4 +47,5 @@ void EspNowFollower::onDataRecv(const uint8_t *mac, const uint8_t *incomingData,
               incomingData[2], incomingData[3]);
   debugPrint("value: ");
   debugPrintln(value);
+#endif
 }

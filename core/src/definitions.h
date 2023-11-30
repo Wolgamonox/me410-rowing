@@ -1,5 +1,7 @@
 // Uncomment to enable debug prints
-#define DEBUG
+// debug 1 means normal debug prints
+// debug 2 means verbose debug prints
+#define DEBUG 1
 
 #ifdef DEBUG
 #define UART_BAUD_RATE 115200
