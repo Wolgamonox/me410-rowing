@@ -252,7 +252,7 @@
                 "ARDUINO_ARCH_ESP32",
                 "ARDUINO_BOARD=\"ESP32_WROOM_DA\"",
                 "ARDUINO_VARIANT=\"esp32da\"",
-                "ARDUINO_PARTITION_no_ota",
+                "ARDUINO_PARTITION_default",
                 "ESP32",
                 "CORE_DEBUG_LEVEL=0",
                 "ARDUINO_RUNNING_CORE=1",

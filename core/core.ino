@@ -27,21 +27,6 @@ const int SPI_MOSI_PIN = GPIO_NUM_4;   // SDI input of MCP2517FD
 const int SPI_CS_PIN = GPIO_NUM_18;
 const int SPI_INT_PIN = GPIO_NUM_21;
 
-#ifdef UPLOAD_FOLLOWER
-// ACAN2517FD
-ACAN2517FD can(SPI_CS_PIN, SPI, SPI_INT_PIN);
-
-// Moteus motor
-Moteus moteus1(can, []() {
-  Moteus::Options options;
-  options.id = 2;
-  return options;
-}());
-
-Moteus::PositionMode::Command position_cmd;
-Moteus::PositionMode::Format position_fmt;
-#endif
-
 // Motor utils
 static uint32_t gNextSendMillis = 0;
 const float POS_ERROR = 0.005;
@@ -84,6 +69,10 @@ struct MainState {
     DONE,
   } calibrationState = NOT_CALIBRATED;
 
+  // The minimum and maximum angle of the knee
+  float minimumAngle = 0.0f;
+  float maximumAngle = 1.0f;
+
   // For the leader, active means sending the angle to the follower
   // For the follower, active means controlling the motor to follow the angle
   // from the leader
@@ -97,7 +86,30 @@ struct MainState {
   // This does not correspond to the angle of the knee, but a value between 0
   // and 1 representing the flexion of the knee on a scaled range
   float kneeFlexion = 0.0f;
+
+  // The target flexion of the knee
+  float targetKneeFlexion = 0.0f;
 } mainState;
+
+
+// Motor configuration
+#ifdef UPLOAD_FOLLOWER
+// ACAN2517FD
+ACAN2517FD can(SPI_CS_PIN, SPI, SPI_INT_PIN);
+
+// Moteus motor
+Moteus moteus1(can, []() {
+  Moteus::Options options;
+  options.id = 2;
+
+  options.disable_brs = true;
+  options.query_format.position = Moteus::kFloat;
+  return options;
+}());
+
+Moteus::PositionMode::Command position_cmd;
+Moteus::PositionMode::Format position_fmt;
+#endif
 
 Button button(BUTTON_PIN);
 ButtonState buttonState = ButtonState::none;
@@ -119,6 +131,11 @@ void setup() {
   Serial.begin(UART_BAUD_RATE);
   debugPrintln("Device started.");
 
+  // print upload follower to avoid mistakes
+#ifdef UPLOAD_FOLLOWER
+  debugPrintln("UPLOAD_FOLLOWER defined");
+#endif
+
   SPI.begin(SPI_SCLK_PIN, SPI_MISO_PIN, SPI_MOSI_PIN);
 
   button.setup();
@@ -130,7 +147,6 @@ void setup() {
 #ifdef UPLOAD_FOLLOWER
   // ACAN2517FD setup
   ACAN2517FDSettings settings(ACAN2517FDSettings::OSC_40MHz, 1000 * 1000, DataBitRateFactor::x5);
-  // settings.mRequestedMode = ACAN2517FDSettings::ExternalLoopBack; // not sure if we need to keep that
   settings.mArbitrationSJW = 2;
   settings.mDriverTransmitFIFOSize = 1;
   settings.mDriverReceiveFIFOSize = 2;
@@ -144,8 +160,12 @@ void setup() {
 
   // Moteus setup
   moteus1.SetStop();
-  moteus1.SetBrake();
   debugPrintln(F("Motor stopped"));
+
+  // First, in case this motor has been opened with tview, we will try
+  // to stop any unsolicited data that may be occurring.
+  moteus1.DiagnosticCommand(F("tel stop"));
+  moteus1.SetDiagnosticFlush();
 
   position_fmt.velocity_limit = Moteus::kFloat;
   position_fmt.accel_limit = Moteus::kFloat;
@@ -153,16 +173,15 @@ void setup() {
   position_cmd.velocity_limit = 2.0;
   position_cmd.accel_limit = 3.0;
 
-  moteus1.DiagnosticCommand(F("conf set servo.pid_position.kp 2.5"));
-  moteus1.DiagnosticCommand(F("conf set servo.pid_position.kd 0.3"));
+  moteus1.DiagnosticCommand(F("conf set servo.pid_position.kp 2.0"));
+  moteus1.DiagnosticCommand(F("conf set servo.pid_position.kd 0.1"));
 
   const auto current_kp = moteus1.DiagnosticCommand(F("conf get servo.pid_position.kp"), Moteus::kExpectSingleLine);
   const auto current_kd = moteus1.DiagnosticCommand(F("conf get servo.pid_position.kd"), Moteus::kExpectSingleLine);
-  debugPrint("Motor Kp: ");
-  debugPrintln(current_kp);
-  debugPrint("Motor Kd: ");
+  debugPrint("KP: ");
+  debugPrint(current_kp);
+  debugPrint(" KD: ");
   debugPrintln(current_kd);
-
 #endif
 
   // If pin is grounded, use wired communication
@@ -170,7 +189,7 @@ void setup() {
 
   // uncomment to use wired communication when you don't have a cable to ground
   // the pin
-  //   pinMode(COMM_OVERRIDE_PIN, INPUT);
+  // pinMode(COMM_OVERRIDE_PIN, INPUT);
 
   statusLED.turnON();
   connectionLED.turnON();
@@ -280,7 +299,33 @@ void loop() {
         break;
       }
 
-      // TODO: Add calibration step
+      // Sense angle
+      encoder_val = analogRead(ENCODER_PIN);
+      // map to motor values between 0 and 1 and
+      // invert them to account for the different rotation direction
+      mainState.kneeFlexion = 1 - ((float)encoder_val / 4096.f);
+
+      // Calibration: setting the minimum and maximum angle
+      if (mainState.calibrationState != MainState::CalibrationState::DONE) {
+        performCalibration();
+
+        // Do nothing else until calibration is done
+        break;
+      }
+
+      // Scale angle to the range [0, 1] with the minimum and maximum angle
+      mainState.kneeFlexion = mapFloat(mainState.kneeFlexion, mainState.minimumAngle, mainState.maximumAngle, 0, 1);
+
+      // SAFETY: If angle is not a number, set to 0 and stop controlling the motor
+      if (isnan(mainState.kneeFlexion) && mainState.active) {
+        mainState.kneeFlexion = 0;
+        mainState.active = false;
+        buzzer.deactivationTone();
+        debugPrintln("Error: wrong angle, not sending");
+      }
+
+      // SAFETY: constrain received angle to the range [0, 1]
+      mainState.kneeFlexion = constrain(mainState.kneeFlexion, 0, 1);
 
       // Update button state to start or stop sending angle
       if (buttonState == ButtonState::longPress) {
@@ -296,13 +341,6 @@ void loop() {
           debugPrintln("Not sending angle");
         }
       }
-
-      // Sense angle
-      encoder_val = analogRead(ENCODER_PIN);
-      mainState.kneeFlexion = encoder_val / 4096.;  // map to motor values between 0 and 1
-
-      // DEBUG: fake angle
-      // mainState.kneeFlexion = random(0, 10000) / 100.0f;
 
       if (mainState.active) {
         // Send angle
@@ -332,7 +370,22 @@ void loop() {
         break;
       }
 
-      // TODO: Add calibration step
+      // Calibration: setting the minimum and maximum angle
+      if (mainState.calibrationState != MainState::CalibrationState::DONE) {
+#ifdef UPLOAD_FOLLOWER
+        delay(20);
+        // Set motor to brake mode to have access to the position
+        moteus1.SetBrake();
+
+        // sense angle from motor
+        const auto& v = moteus1.last_result().values;
+        mainState.kneeFlexion = v.position;
+#endif
+        performCalibration();
+
+        // Do nothing else until calibration is done
+        break;
+      }
 
       // Update button state to start or stop following angle
       if (buttonState == ButtonState::longPress) {
@@ -345,37 +398,67 @@ void loop() {
         if (mainState.active) {
           mainState.active = false;
           buzzer.deactivationTone();
+
+#ifdef UPLOAD_FOLLOWER
+          disableMotor();
+#endif
           debugPrintln("Not following angle");
         }
       }
 
       // Receive angle from leader
-      mainState.kneeFlexion = followerCommunication->getValue();
+      mainState.targetKneeFlexion = followerCommunication->getValue();
 
-      if (mainState.active) {
-        const auto time = millis();
-#ifdef UPLOAD_FOLLOWER
-        const auto& v = moteus1.last_result().values;
-        float current_motor_pos = v.position;
-        if (abs(current_motor_pos - mainState.kneeFlexion) <= POS_ERROR) {
-          moteus1.DiagnosticCommand(F("conf set servo.pid_position.kp 0.01"));
-        } else if (gNextSendMillis < time) {  // send motor command every 20ms //TODO Check if useful
-          moteus1.DiagnosticCommand(F("conf set servo.pid_position.kp 2.5"));
-          gNextSendMillis += 20;
-          // set motor angle as setpoint for the motor controller
-          position_cmd.position = mainState.kneeFlexion;
-          position_cmd.velocity = 1.;
-          moteus1.SetPosition(position_cmd, &position_fmt);
-        }
-#endif
-        // TODO: add print_state function from moteus code
+      // TODO: disable control when not receiving angle
 
-        // TODO: add safety checks on the value send to the motor
-
-        // DEBUG: print received angle
-        // debugPrintln("Angle setpoint: " + String(mainState.kneeFlexion));
+      // SAFETY: If angle is not a number, set to 0 and stop controlling the motor
+      if (isnan(mainState.targetKneeFlexion) && mainState.active) {
+        mainState.targetKneeFlexion = 0;
+        mainState.active = false;
+        buzzer.deactivationTone();
+        debugPrintln("Error: wrong angle, not following");
       }
 
+      // SAFETY: constrain received angle to the range [0, 1]
+      mainState.targetKneeFlexion = constrain(mainState.targetKneeFlexion, 0, 1);
+
+      // Inversly map the angle to the motor values
+      mainState.targetKneeFlexion = mapFloat(mainState.targetKneeFlexion, 0, 1, mainState.minimumAngle, mainState.maximumAngle);
+
+#ifdef UPLOAD_FOLLOWER
+      if (mainState.active) {
+        const auto time = millis();
+
+        if (gNextSendMillis < time) {  // send motor command every 20ms //TODO Check if useful
+          const auto& v = moteus1.last_result().values;
+          float current_motor_pos = v.position;
+
+          debugPrint("Motor angle value: ");
+          debugPrintln(current_motor_pos);
+          debugPrint("Target angle value: ");
+          debugPrintln(mainState.targetKneeFlexion);
+
+          // if (abs(current_motor_pos - mainState.kneeFlexion) <= POS_ERROR) {  // deadzone threshold
+          //   moteus1.DiagnosticCommand(F("conf set servo.pid_position.kp 0.01"));
+          // } else {
+          //   moteus1.DiagnosticCommand(F("conf set servo.pid_position.kp 2.5"));
+          // }
+
+          // set motor angle as setpoint for the motor controller
+          position_cmd.position = mainState.targetKneeFlexion;
+          position_cmd.velocity = 1.;
+          moteus1.SetPosition(position_cmd, &position_fmt);
+
+          gNextSendMillis += 20;
+          // TODO: add print_state function from moteus code
+
+          // TODO: add safety checks on the value send to the motor
+
+          // DEBUG: print received angle
+          // debugPrintln("Angle setpoint: " + String(mainState.kneeFlexion));
+        }
+      }
+#endif
       break;
   }
 
@@ -383,6 +466,50 @@ void loop() {
   setLeds();
 }
 
+// Calibration
+void performCalibration() {
+  switch (mainState.calibrationState) {
+    case MainState::CalibrationState::NOT_CALIBRATED:
+      if (buttonState == ButtonState::longPress) {
+        mainState.calibrationState = MainState::CalibrationState::WAIT_FOR_MINIMUM;
+        buzzer.beep();
+
+        debugPrintln("Calibration started: Go to minimum and press button.");
+      }
+      break;
+
+    case MainState::CalibrationState::WAIT_FOR_MINIMUM:
+      if (buttonState == ButtonState::shortPress) {
+        mainState.calibrationState = MainState::CalibrationState::WAIT_FOR_MAXIMUM;
+        mainState.minimumAngle = mainState.kneeFlexion;
+        buzzer.beep();
+
+        debugPrint(mainState.minimumAngle);
+        debugPrintln("Minimum set. Go to maximum and press button.");
+      }
+      break;
+    case MainState::CalibrationState::WAIT_FOR_MAXIMUM:
+      if (buttonState == ButtonState::shortPress) {
+        mainState.calibrationState = MainState::CalibrationState::DONE;
+        mainState.maximumAngle = mainState.kneeFlexion;
+        buzzer.followerTone();
+
+        debugPrint(mainState.maximumAngle);
+        debugPrintln("Maximum set. Calibration done.");
+      }
+      break;
+  }
+}
+
+#ifdef UPLOAD_FOLLOWER
+// Helper function to stop the motor
+void disableMotor() {
+  moteus1.SetStop();
+  debugPrintln("Motor stopped");
+}
+#endif
+
+// Set the leds to reflect the current state
 void setLeds() {
   if (mainState.connected) {
     connectionLED.turnON();
@@ -427,4 +554,9 @@ void setLeds() {
       }
       break;
   }
+}
+
+// map a value from one range to another for float values
+float mapFloat(float x, float in_min, float in_max, float out_min, float out_max) {
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
