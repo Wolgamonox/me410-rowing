@@ -15,7 +15,7 @@
 
 // Upload on follower or leader
 // Comment out to upload on leader
-// #define UPLOAD_FOLLOWER
+#define UPLOAD_FOLLOWER
 
 // PIN CONFIGURATION
 
@@ -104,6 +104,7 @@ Moteus moteus1(can, []() {
 
   options.disable_brs = true;
   options.query_format.position = Moteus::kFloat;
+  options.query_format.torque = Moteus::kFloat;
   return options;
 }());
 
@@ -178,12 +179,18 @@ void setup() {
   position_fmt.velocity_limit = Moteus::kFloat;
   position_fmt.accel_limit = Moteus::kFloat;
 
-  position_cmd.velocity_limit = 2.0;
+  position_cmd.velocity_limit = 2.0; // normally 1 is okay, but check
   position_cmd.accel_limit = 3.0;
 
-  moteus1.DiagnosticCommand(F("conf set servo.pid_position.kp 2.0"));
-  moteus1.DiagnosticCommand(F("conf set servo.pid_position.ki 1.0"));
-  moteus1.DiagnosticCommand(F("conf set servo.pid_position.kd 0.1"));
+  moteus1.DiagnosticCommand(F("conf set servo.pid_position.kp 30."));
+  moteus1.DiagnosticCommand(F("conf set servo.pid_position.kd 0.03"));
+
+  // Allow for a Ki and set it
+  moteus1.DiagnosticCommand(F("conf set servo.pid_position.ilimit 0.3"));
+  moteus1.DiagnosticCommand(F("conf set servo.pid_position.ki 0."));
+
+  // Set max velocity to 0.5 to improve control and prevent too fast dangerous movements
+  moteus1.DiagnosticCommand(F("conf set servo.max_velocity 0.5"));
 
   const auto current_kp = moteus1.DiagnosticCommand(F("conf get servo.pid_position.kp"), Moteus::kExpectSingleLine);
   const auto current_ki = moteus1.DiagnosticCommand(F("conf get servo.pid_position.ki"), Moteus::kExpectSingleLine);
@@ -449,6 +456,10 @@ void loop() {
         if (gNextSendMillis < time) {  // send motor command every 20ms
           const auto& v = moteus1.last_result().values;
           mainState.kneeFlexion = v.position;
+         
+          // IF want to query the torque (TODO implement max torque for some seconds to prevent overheating)
+          //Serial.println("TORQUE:");
+          //Serial.println(v.torque);
 
           // Might not be needed
           // if (abs(mainState.kneeFlexion - mainState.targetKneeFlexion) <= POS_ERROR) {  // deadzone threshold
@@ -460,8 +471,8 @@ void loop() {
           // set motor angle as setpoint for the motor controller
           // STRANGE: subtract 0.2 to account for the offset of the motor
           // TODO: solve this offset or at least get a more precise value
-          position_cmd.position = mainState.targetKneeFlexion - 0.2;
-          position_cmd.velocity = 1.;
+          position_cmd.position = mainState.targetKneeFlexion;
+          position_cmd.velocity = 0.; // 1 before
           moteus1.SetPosition(position_cmd, &position_fmt);
 
           gNextSendMillis += millisBetweenSends;
