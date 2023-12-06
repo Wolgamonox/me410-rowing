@@ -30,10 +30,10 @@ def animate(i, ser_device, ser_rig, xs, ys_device, ys_rig):
     angle_rig = 0
     try:
         angle_device = float(ser_device.readline().decode())
-        angle_device = angle_device * 360
+        angle_device = angle_device * 100
 
         angle_rig = float(ser_rig.readline().decode())
-        angle_rig = rescale(angle_rig, -0.72, -0.475, [0,360]) # TODO Don´t hard code the min and max follower encoder values
+        angle_rig = rescale(angle_rig, 0.209, 0.417, [0,100]) # TODO Don´t hard code the min and max follower encoder values
     except ValueError:
         return
 
@@ -62,7 +62,7 @@ def animate(i, ser_device, ser_rig, xs, ys_device, ys_rig):
     plt.subplots_adjust(bottom=0.30)
     plt.title("Flexion of the leg")
     plt.ylabel("Angle (degrees)")
-    plt.ylim(-3, 363)
+    plt.ylim(-3, 105)
 
 
 def main():
