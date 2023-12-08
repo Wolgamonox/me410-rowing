@@ -5,6 +5,10 @@ class Buzzer {
     Buzzer(int buzzerPin) {
         this->buzzerPin = buzzerPin;
     }
+    
+    void setup() {
+        pinMode(buzzerPin, OUTPUT);
+    }
 
     void beep() {
         tone(buzzerPin, 800, 300);

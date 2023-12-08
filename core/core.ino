@@ -148,6 +148,7 @@ void setup() {
   SPI.begin(SPI_SCLK_PIN, SPI_MISO_PIN, SPI_MOSI_PIN);
 
   button.setup();
+  buzzer.setup();
 
   // Setup for encoder
   // set the resolution to 12 bits (0-4096)

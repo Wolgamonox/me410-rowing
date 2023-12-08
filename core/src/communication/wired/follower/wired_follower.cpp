@@ -12,7 +12,7 @@ bool WiredFollower::connected = false;
 bool WiredFollower::init() {
   Wire.onReceive(onReceive);
   Wire.onRequest(onRequest);
-  return Wire.begin(I2C_FOLLOWER_ADDRESS);
+  return Wire.begin((uint8_t)I2C_FOLLOWER_ADDRESS, GPIO_NUM_22, GPIO_NUM_23, I2C_FREQ);
 }
 
 bool WiredFollower::isConnected() { return connected; }

@@ -5,7 +5,7 @@
 
 #include "../../../definitions.h"
 
-bool WiredLeader::init() { return Wire.begin(); }
+bool WiredLeader::init() { return Wire.begin(GPIO_NUM_22, GPIO_NUM_23, I2C_FREQ); }
 
 bool WiredLeader::isConnected() {
   uint8_t bytesReceived = Wire.requestFrom(I2C_FOLLOWER_ADDRESS, 1);

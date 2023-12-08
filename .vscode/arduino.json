@@ -1,6 +1,6 @@
 {
     "board": "esp32:esp32:esp32da",
     "sketch": "core\\core.ino",
-    "port": "COM9",
+    "port": "COM3",
     "output": "./build"
 }
