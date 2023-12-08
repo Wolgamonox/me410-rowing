@@ -15,7 +15,7 @@
 
 // Upload on follower or leader
 // Comment out to upload on leader
-#define UPLOAD_FOLLOWER
+// #define UPLOAD_FOLLOWER
 
 // PIN CONFIGURATION
 
@@ -327,8 +327,8 @@ void loop() {
       encoder_val = analogRead(ENCODER_PIN);
       // map to motor values between 0 and 1 and
       // invert them to account for the different rotation direction
-      //mainState.kneeFlexion = 1 - ((float)encoder_val / 4096.f);
-      mainState.kneeFlexion = ((float)encoder_val / 4096.f);
+      mainState.kneeFlexion = 1 - ((float)encoder_val / 4096.f);
+      // mainState.kneeFlexion = ((float)encoder_val / 4096.f);
 
       // Calibration: setting the minimum and maximum angle
       if (mainState.calibrationState != MainState::CalibrationState::DONE) {
