@@ -52,8 +52,8 @@ const int COMM_OVERRIDE_PIN = GPIO_NUM_19;
 
 // I2C, not used in the code but mark here so we don't use the pins for
 // something else
-const int I2C_SDA_PIN = GPIO_NUM_22;
-const int I2C_SCL_PIN = GPIO_NUM_23;
+//const int I2C_SDA_PIN = GPIO_NUM_22;
+//const int I2C_SCL_PIN = GPIO_NUM_23;
 
 // Main state of the device
 struct MainState {
@@ -130,7 +130,7 @@ int commPeriod = 5;
 unsigned long commTime = 0;
 
 // Period at which we monitor the angle
-int monitorPeriod = 30;
+int monitorPeriod = 50;
 unsigned long monitorTime = 0;
 
 ezLED statusLED(STATUS_LED_PIN);
@@ -185,6 +185,10 @@ void setup() {
 
   moteus1.DiagnosticCommand(F("conf set servo.pid_position.kp 30."));
   moteus1.DiagnosticCommand(F("conf set servo.pid_position.kd 0.03"));
+  moteus1.DiagnosticCommand(F("conf set servo.pid_position.ilimit 2"));
+  moteus1.DiagnosticCommand(F("conf set servo.pid_position.ki 60"));
+
+
 
   // Allow for a Ki and set it
   moteus1.DiagnosticCommand(F("conf set servo.pid_position.ilimit 0.3"));
@@ -323,7 +327,8 @@ void loop() {
       encoder_val = analogRead(ENCODER_PIN);
       // map to motor values between 0 and 1 and
       // invert them to account for the different rotation direction
-      mainState.kneeFlexion = 1 - ((float)encoder_val / 4096.f);
+      //mainState.kneeFlexion = 1 - ((float)encoder_val / 4096.f);
+      mainState.kneeFlexion = ((float)encoder_val / 4096.f);
 
       // Calibration: setting the minimum and maximum angle
       if (mainState.calibrationState != MainState::CalibrationState::DONE) {
