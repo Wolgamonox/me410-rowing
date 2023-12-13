@@ -1,7 +1,7 @@
 // Uncomment to enable debug prints
 // debug 1 means normal debug prints
 // debug 2 means verbose debug prints
-#define DEBUG 1
+// #define DEBUG 1
 
 #define UART_BAUD_RATE 115200
 
@@ -16,7 +16,7 @@
 #endif
 
 // Uncomment to enable angle monitoring through serial
-// #define MONITOR_ANGLE
+#define MONITOR_ANGLE
 
 #ifdef MONITOR_ANGLE
 #define monitorPrintf(...) Serial.printf(__VA_ARGS__)
